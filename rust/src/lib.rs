@@ -43,7 +43,7 @@ pub extern "C" fn optimize_image_ffi(
     output_path: *const c_char,
     output: *mut OptimizeImageOutput,
 ) -> i32 {
-    if image_path.is_null() || output.is_null() {
+    if image_path.is_null() || output_path.is_null() || output.is_null() {
         return -1;
     }
 
@@ -100,5 +100,29 @@ pub extern "C" fn optimize_image_ffi(
             }
             5
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{optimize_image_ffi, OptimizeImageOutput};
+    use std::{ffi::CString, ptr};
+
+    #[test]
+    fn returns_error_for_null_output_path() {
+        let image_path = CString::new("input.png").expect("valid C string");
+        let mut output = OptimizeImageOutput {
+            quality: 0,
+            error_code: 0,
+        };
+
+        let result = optimize_image_ffi(
+            image_path.as_ptr(),
+            80,
+            ptr::null(),
+            &mut output as *mut OptimizeImageOutput,
+        );
+
+        assert_eq!(result, -1);
     }
 }
