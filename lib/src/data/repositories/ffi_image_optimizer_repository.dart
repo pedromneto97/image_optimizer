@@ -32,7 +32,7 @@ class FfiImageOptimizerRepository implements ImageOptimizerRepository {
           : errorCode;
 
       if (effectiveErrorCode != 0) {
-        throw _exceptionFromCode(effectiveErrorCode);
+        _throwExceptionFromCode(effectiveErrorCode);
       }
 
       final outputFile = File(outputPath);
@@ -52,7 +52,7 @@ class FfiImageOptimizerRepository implements ImageOptimizerRepository {
     }
   }
 
-  ImageOptimizationException _exceptionFromCode(int code) => switch (code) {
+  Never _throwExceptionFromCode(int code) => throw switch (code) {
     1 => const InputImageNotFoundException(),
     2 => const InputImageOpenException(),
     3 => const UnsupportedImageTypeException(),
