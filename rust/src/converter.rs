@@ -1,7 +1,7 @@
 use std::{fs, path::Path};
 
 use image::GenericImageView;
-use libwebp_sys::{WebPEncodeRGB, WebPEncodeRGBA};
+use libwebp_sys::{WebPEncodeRGB, WebPEncodeRGBA, WebPFree};
 
 use crate::result::{ConverterError, ConverterResult};
 
@@ -52,6 +52,26 @@ fn get_image(image_path: String) -> ConverterResult<ImageData> {
     ))
 }
 
+struct WebPBuffer {
+    ptr: *mut u8,
+}
+
+impl WebPBuffer {
+    fn new(ptr: *mut u8) -> Self {
+        Self { ptr }
+    }
+}
+
+impl Drop for WebPBuffer {
+    fn drop(&mut self) {
+        if !self.ptr.is_null() {
+            unsafe {
+                WebPFree(self.ptr.cast());
+            }
+        }
+    }
+}
+
 fn encode(image: &ImageData, quality: f32) -> ConverterResult<Vec<u8>> {
     let mut out_buf = std::ptr::null_mut();
 
@@ -79,7 +99,10 @@ fn encode(image: &ImageData, quality: f32) -> ConverterResult<Vec<u8>> {
             return Err(ConverterError::EncodingFailed);
         }
 
-        Ok(std::slice::from_raw_parts(out_buf, len).to_vec())
+        let buffer = WebPBuffer::new(out_buf);
+        let bytes = std::slice::from_raw_parts(buffer.ptr, len).to_vec();
+
+        Ok(bytes)
     }
 }
 
