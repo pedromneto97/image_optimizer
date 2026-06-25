@@ -6,15 +6,16 @@ void main(List<String> args) async {
   hierarchicalLoggingEnabled = true;
 
   await build(args, (input, output) async {
-    await RustBuilder(
+    await const RustBuilder(
       assetName: 'src/ffi.g.dart',
       extraCargoEnvironmentVariables: {'RUSTFLAGS': '-Ctarget-cpu=native'},
-      // ...maybe enable some Cargo features or something in here too
     ).run(
       input: input,
       output: output,
       logger: Logger('RustBuilder')
         ..level = .ALL
+        // Only used while building the Rust code
+        // ignore: avoid_print
         ..onRecord.listen((record) => print(record.message)),
     );
   });
