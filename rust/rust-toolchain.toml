@@ -1,0 +1,18 @@
+[toolchain]
+channel = "1.96.0"
+components = ["rust-analyzer"]
+
+# The targets you want to support; these are the default:
+targets = [
+  # Windows
+  "aarch64-pc-windows-msvc",
+  "x86_64-pc-windows-msvc",
+
+  # Linux
+  "aarch64-unknown-linux-gnu",
+  "x86_64-unknown-linux-gnu",
+
+  # macOS
+  "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
+]
