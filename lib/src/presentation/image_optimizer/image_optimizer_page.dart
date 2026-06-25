@@ -30,17 +30,30 @@ class ImageOptimizerPage extends StatelessWidget {
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 24),
-          BlocSelector<ImageOptimizerCubit, ImageOptimizerState, bool>(
-            selector: (state) => state is ImageOptimizerOptimizing,
-            builder: (context, isLoading) => FilledButton.icon(
-              onPressed: isLoading
-                  ? null
-                  : context.read<ImageOptimizerCubit>().pickImage,
-              icon: const Icon(Icons.image_search),
-              label: const Text('Pick image'),
-            ),
+          Row(
+            spacing: 16,
+            children: [
+              const Expanded(child: QualitySlider()),
+              Expanded(
+                child:
+                    BlocSelector<
+                      ImageOptimizerCubit,
+                      ImageOptimizerState,
+                      bool
+                    >(
+                      selector: (state) => state is ImageOptimizerOptimizing,
+                      builder: (context, isLoading) => FilledButton.icon(
+                        onPressed: isLoading
+                            ? null
+                            : context.read<ImageOptimizerCubit>().pickImage,
+                        icon: const Icon(Icons.image_search),
+                        label: const Text('Pick image'),
+                      ),
+                    ),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           BlocSelector<ImageOptimizerCubit, ImageOptimizerState, XFile?>(
             selector: (state) =>
                 state is ImageOptimizerFilePicked ? state.pickedFile : null,
@@ -49,8 +62,6 @@ class ImageOptimizerPage extends StatelessWidget {
                 : const SizedBox.shrink(),
           ),
           const SizedBox(height: 24),
-          const QualitySlider(),
-          const SizedBox(height: 16),
           BlocSelector<
             ImageOptimizerCubit,
             ImageOptimizerState,
