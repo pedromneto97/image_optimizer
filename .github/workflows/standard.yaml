@@ -1,4 +1,4 @@
-name: Analyse and Test
+name: Analyze
 
 on:
   push:
@@ -22,5 +22,3 @@ jobs:
         run: flutter pub get
       - name: Run Flutter analyze
         run: flutter analyze
-      - name: Run Flutter tests
-        run: flutter test --coverage

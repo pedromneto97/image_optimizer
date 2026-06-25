@@ -44,17 +44,35 @@ pub extern "C" fn optimize_image_ffi(
     output: *mut OptimizeImageOutput,
 ) -> i32 {
     if image_path.is_null() || output_path.is_null() || output.is_null() {
+        unsafe {
+            if !output.is_null() {
+                (*output).quality = 0;
+                (*output).error_code = -1;
+            }
+        }
         return -1;
     }
 
     let output_path = match unsafe { CStr::from_ptr(output_path).to_str() } {
         Ok(s) => s.to_string(),
-        Err(_) => return -1,
+        Err(_) => {
+            unsafe {
+                (*output).quality = 0;
+                (*output).error_code = -1;
+            }
+            return -1;
+        }
     };
 
     let path_cstr = match unsafe { CStr::from_ptr(image_path).to_str() } {
         Ok(s) => s.to_string(),
-        Err(_) => return -1,
+        Err(_) => {
+            unsafe {
+                (*output).quality = 0;
+                (*output).error_code = -1;
+            }
+            return -1;
+        }
     };
 
     match optimize_image(path_cstr, output_path, min_quality) {
@@ -63,7 +81,7 @@ pub extern "C" fn optimize_image_ffi(
                 (*output).quality = quality;
                 (*output).error_code = 0;
             }
-            1
+            0
         }
         Err(ConverterError::FileNotFound) => {
             unsafe {
