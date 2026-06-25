@@ -1,5 +1,4 @@
 import '../../../domain/exceptions.dart';
-import '../cubit/image_optimizer_cubit.dart';
 
 String imageOptimizerErrorMessage(Exception exception) => switch (exception) {
   InputImageNotFoundException() => 'Input image file was not found.',
@@ -13,6 +12,6 @@ String imageOptimizerErrorMessage(Exception exception) => switch (exception) {
     'The optimizer finished, but the output file was not created.',
   UnknownImageOptimizationException(:final code) =>
     'Image optimization failed with error code $code.',
-  ImageNotSelectedException() => 'Choose an image before optimizing.',
+
   _ => 'Image optimization failed: $exception',
 };

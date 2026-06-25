@@ -36,29 +36,29 @@ class FfiImageOptimizerRepository implements ImageOptimizerRepository {
       }
 
       final outputFile = File(outputPath);
-      if (!await outputFile.exists()) {
+      if (!outputFile.existsSync()) {
         throw const MissingOutputImageException();
       }
 
       return OptimizationResult(
         outputPath: outputPath,
         selectedQuality: ffiResult.quality,
-        convertedSizeBytes: await outputFile.length(),
       );
     } finally {
-      calloc.free(inputPointer);
-      calloc.free(outputPointer);
-      calloc.free(resultPointer);
+      calloc
+        ..free(inputPointer)
+        ..free(outputPointer)
+        ..free(resultPointer);
     }
   }
 
   ImageOptimizationException _exceptionFromCode(int code) => switch (code) {
-      1 => const InputImageNotFoundException(),
-      2 => const InputImageOpenException(),
-      3 => const UnsupportedImageTypeException(),
-      4 => const WebPEncodingException(),
-      5 => const OutputImageWriteException(),
-      -1 => const InvalidOptimizerParametersException(),
-      _ => UnknownImageOptimizationException(code),
-    };
+    1 => const InputImageNotFoundException(),
+    2 => const InputImageOpenException(),
+    3 => const UnsupportedImageTypeException(),
+    4 => const WebPEncodingException(),
+    5 => const OutputImageWriteException(),
+    -1 => const InvalidOptimizerParametersException(),
+    _ => UnknownImageOptimizationException(code),
+  };
 }

@@ -1,131 +1,77 @@
 import 'dart:io';
 
+import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 
+import '../../../domain/exceptions.dart';
 import '../../../domain/usecases/optimize_image.dart';
-import 'image_optimizer_state.dart';
+
+part 'image_optimizer_state.dart';
 
 class ImageOptimizerCubit extends Cubit<ImageOptimizerState> {
-  ImageOptimizerCubit({
-    required OptimizeImage optimizeImage,
-    ImagePicker? imagePicker,
-  })  : _optimizeImage = optimizeImage,
-        _imagePicker = imagePicker ?? ImagePicker(),
-        super(const ImageOptimizerInitial());
+  ImageOptimizerCubit({required this._optimizeImage, ImagePicker? imagePicker})
+    : _imagePicker = imagePicker ?? ImagePicker(),
+      super(const ImageOptimizerInitial());
 
   final OptimizeImage _optimizeImage;
   final ImagePicker _imagePicker;
 
   Future<void> pickImage() async {
-    final previousState = state;
-    emit(ImageOptimizerPicking(minimumQuality: state.minimumQuality));
-
     try {
-      final image = await _imagePicker.pickImage(source: ImageSource.gallery);
-      if (image == null) {
-        emit(previousState);
+      final pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+      );
+
+      if (pickedFile == null) {
         return;
       }
 
-      final file = File(image.path);
+      final outputPath = await _buildOutputPath(
+        pickedFile.name.split('.').first,
+      );
       emit(
-        ImageOptimizerReady(
-          selectedInputPath: image.path,
-          selectedOriginalSizeBytes: await file.length(),
-          minimumQuality: state.minimumQuality,
+        ImageOptimizerOptimizing.fromImageOptimizerState(
+          state,
+          outputPath: outputPath,
+          pickedFile: pickedFile,
         ),
       );
-    } on Exception catch (error) {
-      emit(
-        ImageOptimizerFailure(previousState: previousState, exception: error),
-      );
-    }
-  }
 
-  void updateMinimumQuality(double value) {
-    final minimumQuality = value.round().clamp(0, 100).toInt();
-    final currentState = state;
-
-    switch (currentState) {
-      case ImageOptimizerReady():
-        emit(currentState.copyWith(minimumQuality: minimumQuality));
-      case ImageOptimizerFailure(previousState: final previousState):
-        emit(_withMinimumQuality(previousState, minimumQuality));
-      default:
-        emit(_MinimumQualityOnlyState(minimumQuality: minimumQuality));
-    }
-  }
-
-  Future<void> optimizeSelectedImage() async {
-    final readyState = _readyStateFrom(state);
-    if (readyState == null) {
-      emit(
-        ImageOptimizerFailure(
-          previousState: state,
-          exception: const ImageNotSelectedException(),
-        ),
-      );
-      return;
-    }
-
-    emit(
-      ImageOptimizerOptimizing(
-        readyState: readyState.copyWith(clearResult: true),
-      ),
-    );
-
-    try {
-      final outputPath = _buildOutputPath(readyState.inputPath);
-      final result = await _optimizeImage(
-        inputPath: readyState.inputPath,
-        minimumQuality: readyState.minimumQuality,
+      final result = await _optimizeImage.call(
+        inputPath: pickedFile.path,
         outputPath: outputPath,
+        minimumQuality: state.minimumQuality,
       );
 
-      emit(readyState.copyWith(optimizationResult: result));
-    } on Exception catch (error) {
-      emit(ImageOptimizerFailure(previousState: readyState, exception: error));
+      emit(
+        OptimizeImageSuccess.fromImageOptimizerState(
+          state as ImageOptimizerFilePicked,
+          outputQuality: result.selectedQuality,
+        ),
+      );
+    } on ImageOptimizationException catch (e) {
+      emit(
+        ImageOptimizerFailure.fromImageOptimizerState(
+          state as ImageOptimizerFilePicked,
+          exception: e,
+        ),
+      );
+    } catch (e) {
+      emit(FailedToPickImage.fromImageOptimizerState(state));
     }
   }
 
-  ImageOptimizerReady? _readyStateFrom(ImageOptimizerState state) {
-    return switch (state) {
-      ImageOptimizerReady() => state,
-      ImageOptimizerFailure(previousState: final previousState) =>
-        _readyStateFrom(previousState),
-      _ => null,
-    };
+  void updateMinimumQuality(int value) {
+    final minimumQuality = value.round().clamp(0, 100).toInt();
+
+    emit(state.copyWith(minimumQuality: minimumQuality));
   }
 
-  ImageOptimizerState _withMinimumQuality(
-    ImageOptimizerState state,
-    int minimumQuality,
-  ) {
-    return switch (state) {
-      ImageOptimizerReady() => state.copyWith(minimumQuality: minimumQuality),
-      _ => _MinimumQualityOnlyState(minimumQuality: minimumQuality),
-    };
+  Future<String> _buildOutputPath(String fileName) async {
+    final outputDir = await getApplicationDocumentsDirectory();
+
+    return '${outputDir.path}${Platform.pathSeparator}${fileName}_${DateTime.now().millisecondsSinceEpoch}.webp';
   }
-
-  String _buildOutputPath(String inputPath) {
-    final file = File(inputPath);
-    final directory = file.parent.path;
-    final name = file.uri.pathSegments.last;
-    final dotIndex = name.lastIndexOf('.');
-    final baseName = dotIndex > 0 ? name.substring(0, dotIndex) : name;
-
-    return '$directory${Platform.pathSeparator}$baseName.optimized.webp';
-  }
-}
-
-class ImageNotSelectedException implements Exception {
-  const ImageNotSelectedException();
-}
-
-class _MinimumQualityOnlyState extends ImageOptimizerState {
-  const _MinimumQualityOnlyState({required super.minimumQuality});
-
-  @override
-  List<Object?> get props => [minimumQuality];
 }

@@ -4,18 +4,18 @@ import 'package:flutter/foundation.dart'
     show DiagnosticPropertiesBuilder, DiagnosticsProperty;
 import 'package:flutter/material.dart';
 
-import '../cubit/image_optimizer_state.dart';
+import '../cubit/image_optimizer_cubit.dart';
 import 'file_detail_row.dart';
 import 'format_bytes.dart';
 
 class ResultCard extends StatelessWidget {
   const ResultCard({required this.state, super.key});
 
-  final ImageOptimizerState state;
+  final OptimizeImageSuccess state;
 
   @override
   Widget build(BuildContext context) {
-    final outputPath = state.outputPath!;
+    final outputPath = state.outputPath;
 
     return Card(
       child: Padding(
@@ -45,15 +45,25 @@ class ResultCard extends StatelessWidget {
             ),
             FileDetailRow(
               label: 'Actual quality',
-              value: '${state.outputQuality ?? '-'}',
+              value: '${state.outputQuality}',
             ),
-            FileDetailRow(
-              label: 'New size',
-              value: formatBytes(state.convertedSizeBytes),
+            FutureBuilder(
+              future: state.outputFileSizeBytes,
+              builder: (context, asyncSnapshot) => FileDetailRow(
+                label: 'New size',
+                value: asyncSnapshot.data == null
+                    ? 'Loading...'
+                    : formatBytes(asyncSnapshot.data ?? 0),
+              ),
             ),
-            FileDetailRow(
-              label: 'Difference',
-              value: formatSignedBytes(state.sizeDifferenceBytes),
+            FutureBuilder(
+              future: state.sizeDifferenceBytes,
+              builder: (context, asyncSnapshot) => FileDetailRow(
+                label: 'Difference',
+                value: asyncSnapshot.data == null
+                    ? 'Loading...'
+                    : formatBytes(asyncSnapshot.data ?? 0),
+              ),
             ),
           ],
         ),
