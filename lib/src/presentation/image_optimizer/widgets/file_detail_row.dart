@@ -3,10 +3,16 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/material.dart';
 
 class FileDetailRow extends StatelessWidget {
-  const FileDetailRow({required this.label, required this.value, super.key});
+  const FileDetailRow({
+    required this.label,
+    required this.value,
+    this.trailing,
+    super.key,
+  });
 
   final String label;
   final String value;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -21,7 +27,11 @@ class FileDetailRow extends StatelessWidget {
             style: const TextStyle(fontWeight: FontWeight.w600),
           ),
         ),
-        Expanded(child: SelectableText(value)),
+        Expanded(
+          child: trailing != null
+              ? Row(spacing: 4, children: [SelectableText(value), trailing!])
+              : SelectableText(value),
+        ),
       ],
     ),
   );

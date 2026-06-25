@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart'
     show DiagnosticPropertiesBuilder, DiagnosticsProperty;
 import 'package:flutter/material.dart';
+import 'package:path/path.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
 import '../cubit/image_optimizer_cubit.dart';
 import 'file_detail_row.dart';
@@ -29,7 +31,7 @@ class ResultCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             ClipRRect(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: const BorderRadius.all(Radius.circular(12)),
               child: Image.file(
                 File(outputPath),
                 height: 280,
@@ -38,7 +40,14 @@ class ResultCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            FileDetailRow(label: 'Output path', value: outputPath),
+            FileDetailRow(
+              label: 'Output path',
+              value: outputPath,
+              trailing: IconButton(
+                onPressed: _onTapOpenDirectory,
+                icon: const Icon(Icons.open_in_new),
+              ),
+            ),
             FileDetailRow(
               label: 'Requested minimum quality',
               value: '${state.minimumQuality}',
@@ -76,4 +85,7 @@ class ResultCard extends StatelessWidget {
     super.debugFillProperties(properties);
     properties.add(DiagnosticsProperty<ImageOptimizerState>('state', state));
   }
+
+  void _onTapOpenDirectory() =>
+      launchUrlString('file:${dirname(state.outputPath)}');
 }
