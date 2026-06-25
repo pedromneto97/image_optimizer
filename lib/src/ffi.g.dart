@@ -4,73 +4,42 @@
 // ignore_for_file: type=lint, unused_import
 import 'dart:ffi' as ffi;
 
-/// FFI bindings for the image_optimizer Rust library
-class ImageOptimizerFFI {
-  /// Holds the symbol lookup function.
-  final ffi.Pointer<T> Function<T extends ffi.NativeType>(String symbolName)
-  _lookup;
-
-  /// The symbols are looked up in [dynamicLibrary].
-  ImageOptimizerFFI(ffi.DynamicLibrary dynamicLibrary)
-    : _lookup = dynamicLibrary.lookup;
-
-  /// The symbols are looked up with [lookup].
-  ImageOptimizerFFI.fromLookup(
-    ffi.Pointer<T> Function<T extends ffi.NativeType>(String symbolName) lookup,
-  ) : _lookup = lookup;
-
-  /// Optimize an image and write it to the specified output path
-  ///
-  /// # Arguments
-  /// * `image_path` - C string pointer to the input image file path
-  /// * `min_quality` - Minimum quality level (0-100)
-  /// * `output_path` - C string pointer to the output file path where optimized image will be written
-  /// * `output` - Pointer to output structure (must not be null)
-  ///
-  /// # Return Value
-  /// Returns via the `output` parameter:
-  /// * `error_code = 0` on success (quality contains the selected quality level)
-  /// * `error_code = 1` if input file not found
-  /// * `error_code = 2` if failed to open input image
-  /// * `error_code = 3` if image type not supported
-  /// * `error_code = 4` if encoding failed
-  /// * `error_code = 5` if output file write failed
-  /// * `error_code = -1` if parameters are invalid (null pointers)
-  ///
-  /// # Safety
-  /// * `image_path` must be a valid, null-terminated C string
-  /// * `output_path` must be a valid, null-terminated C string
-  /// * `output` must be a valid, non-null pointer to an OptimizeImageOutput struct
-  int optimize_image_ffi(
-    ffi.Pointer<ffi.Char> image_path,
-    int min_quality,
-    ffi.Pointer<ffi.Char> output_path,
-    ffi.Pointer<OptimizeImageOutput> output,
-  ) {
-    return _optimize_image_ffi(image_path, min_quality, output_path, output);
-  }
-
-  late final _optimize_image_ffiPtr =
-      _lookup<
-        ffi.NativeFunction<
-          ffi.Int32 Function(
-            ffi.Pointer<ffi.Char>,
-            ffi.Uint8,
-            ffi.Pointer<ffi.Char>,
-            ffi.Pointer<OptimizeImageOutput>,
-          )
-        >
-      >('optimize_image_ffi');
-  late final _optimize_image_ffi = _optimize_image_ffiPtr
-      .asFunction<
-        int Function(
-          ffi.Pointer<ffi.Char>,
-          int,
-          ffi.Pointer<ffi.Char>,
-          ffi.Pointer<OptimizeImageOutput>,
-        )
-      >();
-}
+/// Optimize an image and write it to the specified output path
+///
+/// # Arguments
+/// * `image_path` - C string pointer to the input image file path
+/// * `min_quality` - Minimum quality level (0-100)
+/// * `output_path` - C string pointer to the output file path where optimized image will be written
+/// * `output` - Pointer to output structure (must not be null)
+///
+/// # Return Value
+/// Returns via the `output` parameter:
+/// * `error_code = 0` on success (quality contains the selected quality level)
+/// * `error_code = 1` if input file not found
+/// * `error_code = 2` if failed to open input image
+/// * `error_code = 3` if image type not supported
+/// * `error_code = 4` if encoding failed
+/// * `error_code = 5` if output file write failed
+/// * `error_code = -1` if parameters are invalid (null pointers)
+///
+/// # Safety
+/// * `image_path` must be a valid, null-terminated C string
+/// * `output_path` must be a valid, null-terminated C string
+/// * `output` must be a valid, non-null pointer to an OptimizeImageOutput struct
+@ffi.Native<
+  ffi.Int32 Function(
+    ffi.Pointer<ffi.Char>,
+    ffi.Uint8,
+    ffi.Pointer<ffi.Char>,
+    ffi.Pointer<OptimizeImageOutput>,
+  )
+>()
+external int optimize_image_ffi(
+  ffi.Pointer<ffi.Char> image_path,
+  int min_quality,
+  ffi.Pointer<ffi.Char> output_path,
+  ffi.Pointer<OptimizeImageOutput> output,
+);
 
 /// FFI-safe output structure
 final class OptimizeImageOutput extends ffi.Struct {

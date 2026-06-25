@@ -8,5 +8,6 @@ void main() {
     headers: Headers(entryPoints: [packageRoot.resolve('rust/bindings.h')]),
     output: Output(dartFile: packageRoot.resolve('lib/src/ffi.g.dart')),
     functions: Functions.includeSet({'optimize_image_ffi'}),
+    structs: Structs.includeSet({'OptimizeImageOutput'}),
   ).generate();
 }
