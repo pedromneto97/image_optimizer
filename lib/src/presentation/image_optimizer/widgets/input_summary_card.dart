@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart'
+    show DiagnosticPropertiesBuilder, DiagnosticsProperty;
 import 'package:flutter/material.dart';
 
 import '../cubit/image_optimizer_state.dart';
@@ -10,26 +12,30 @@ class InputSummaryCard extends StatelessWidget {
   final ImageOptimizerState state;
 
   @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Input', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            FileDetailRow(
-              label: 'Path',
-              value: state.inputPath ?? 'No image selected',
-            ),
-            FileDetailRow(
-              label: 'Original size',
-              value: formatBytes(state.originalSizeBytes),
-            ),
-          ],
-        ),
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Input', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          FileDetailRow(
+            label: 'Path',
+            value: state.inputPath ?? 'No image selected',
+          ),
+          FileDetailRow(
+            label: 'Original size',
+            value: formatBytes(state.originalSizeBytes),
+          ),
+        ],
       ),
-    );
+    ),
+  );
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+    properties.add(DiagnosticsProperty<ImageOptimizerState>('state', state));
   }
 }

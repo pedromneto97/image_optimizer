@@ -52,8 +52,7 @@ class FfiImageOptimizerRepository implements ImageOptimizerRepository {
     }
   }
 
-  ImageOptimizationException _exceptionFromCode(int code) {
-    return switch (code) {
+  ImageOptimizationException _exceptionFromCode(int code) => switch (code) {
       1 => const InputImageNotFoundException(),
       2 => const InputImageOpenException(),
       3 => const UnsupportedImageTypeException(),
@@ -62,5 +61,4 @@ class FfiImageOptimizerRepository implements ImageOptimizerRepository {
       -1 => const InvalidOptimizerParametersException(),
       _ => UnknownImageOptimizationException(code),
     };
-  }
 }

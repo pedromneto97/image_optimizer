@@ -14,19 +14,17 @@ class ImageOptimizerApp extends StatelessWidget {
   const ImageOptimizerApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Image Optimizer',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
-        useMaterial3: true,
+  Widget build(BuildContext context) => MaterialApp(
+    title: 'Image Optimizer',
+    theme: ThemeData(
+      colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
+      useMaterial3: true,
+    ),
+    home: BlocProvider(
+      create: (_) => ImageOptimizerCubit(
+        optimizeImage: OptimizeImage(FfiImageOptimizerRepository()),
       ),
-      home: BlocProvider(
-        create: (_) => ImageOptimizerCubit(
-          optimizeImage: OptimizeImage(FfiImageOptimizerRepository()),
-        ),
-        child: const ImageOptimizerPage(),
-      ),
-    );
-  }
+      child: const ImageOptimizerPage(),
+    ),
+  );
 }

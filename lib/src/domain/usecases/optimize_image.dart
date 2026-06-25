@@ -10,11 +10,9 @@ class OptimizeImage {
     required String inputPath,
     required int minimumQuality,
     required String outputPath,
-  }) {
-    return _repository.optimize(
+  }) => _repository.optimize(
       inputPath: inputPath,
       minimumQuality: minimumQuality,
       outputPath: outputPath,
     );
-  }
 }
