@@ -26,6 +26,10 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter
+  msix:
+    git:
+      url: https://github.com/pedromneto97/msix
+      ref: main
 
 flutter:
   generate: true
@@ -46,3 +50,21 @@ ffigen:
   comments:
     style: any
     length: full
+
+msix_config:
+  display_name: Image Optimizer
+  publisher_display_name: Pedro Mendes
+  identity_name: br.eng.pedromendes.image-optimizer
+  capabilities: picturesLibrary
+  install_certificate: false
+  languages: en-US
+  publisher: "E=pedromneto97@gmail.com, CN=Pedro de Mattos Mariano Mendes Neto,
+    OU=IT, O=Pedro Mendes Dev, L=Curitiba, S=Parana, C=BR"
+  logo_path: logo.png
+  app_installer:
+    publish_folder_path: dist
+    remote_url: https://pedro-mendes.eng.br/apps/image-optimizer
+    hours_between_update_checks: 0
+    automatic_background_task: true
+    update_blocks_activation: true
+    show_prompt: true
