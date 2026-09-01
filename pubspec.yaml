@@ -1,10 +1,10 @@
 name: image_optimizer
 description: "Optimize images by converting it to WebP and choosing the best quality/compression ratio"
-publish_to: 'none'
+publish_to: "none"
 version: 1.0.0+2
 
 environment:
-  sdk: ^3.12.2
+  sdk: ^3.13.2
 
 dependencies:
   code_assets: ^1.2.1
@@ -13,16 +13,16 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_bloc: ^9.1.1
-  hooks: ^2.0.2
+  hooks: ^2.2.0
   image_picker: ^1.2.1
   logging: ^1.3.0
-  native_toolchain_rust: ^1.0.4+0
+  native_toolchain_rust: ^1.0.6
   path: ^1.9.1
   path_provider: ^2.1.6
   url_launcher: ^6.3.2
 
 dev_dependencies:
-  ffigen: ^20.1.1
+  ffigen: ^21.0.0
   flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter
@@ -34,6 +34,8 @@ dev_dependencies:
 flutter:
   generate: true
   uses-material-design: true
+  config:
+    enable-swift-package-manager: true
 
 ffigen:
   name: ImageOptimizerFFI
@@ -43,7 +45,7 @@ ffigen:
     entry-points:
       - rust/bindings.h
     include-directives:
-      - 'rust/bindings.h'
+      - "rust/bindings.h"
   functions:
     include:
       - optimize_image_ffi
