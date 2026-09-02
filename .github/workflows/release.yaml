@@ -143,35 +143,65 @@ jobs:
       - name: Sign app bundle
         if: env.CERTIFICATE_BASE64 != ''
         run: |
+          sign() {
+            codesign --force --options runtime --timestamp \
+              --sign "$SIGNING_IDENTITY" "$@"
+          }
+
           # Sign nested code (Flutter framework, plugins, the Rust dylib) inside out,
-          # rather than relying on the deprecated --deep. Loose dylibs first, then the
-          # framework bundles that may contain them, then the app itself.
+          # rather than relying on the deprecated --deep. Every Mach-O binary in the
+          # bundle needs its own hardened-runtime + timestamped signature; one that is
+          # missed only surfaces as an Invalid notarization ten minutes later. Match on
+          # file type rather than a *.dylib glob under Frameworks, so native-asset
+          # libraries and helper tools outside Frameworks are covered too.
+          find "$APP_PATH/Contents" -type f -print0 |
+            while IFS= read -r -d '' item; do
+              case "$(file -b "$item")" in
+                *Mach-O*) sign "$item" ;;
+              esac
+            done
+
+          # Then the bundles that contain them, then the app itself.
           if [ -d "$APP_PATH/Contents/Frameworks" ]; then
-            find "$APP_PATH/Contents/Frameworks" -type f -name '*.dylib' -print0 |
-              while IFS= read -r -d '' item; do
-                codesign --force --options runtime --timestamp \
-                  --sign "$SIGNING_IDENTITY" "$item"
-              done
             find "$APP_PATH/Contents/Frameworks" -maxdepth 1 -name '*.framework' -print0 |
               while IFS= read -r -d '' item; do
-                codesign --force --options runtime --timestamp \
-                  --sign "$SIGNING_IDENTITY" "$item"
+                sign "$item"
               done
           fi
           codesign --force --options runtime --timestamp \
             --entitlements macos/Runner/Release.entitlements \
             --sign "$SIGNING_IDENTITY" "$APP_PATH"
-          codesign --verify --strict --verbose=2 "$APP_PATH"
+
+          # --deep, unlike the top-level-only check this replaces, walks the nested
+          # code the notary service will walk.
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+
+          # The notary service rejects anything not signed with Developer ID
+          # Application, however valid the signature is locally.
+          if ! codesign --display --verbose=2 "$APP_PATH" 2>&1 |
+              grep -q '^Authority=Developer ID Application'; then
+            echo "::error::$APP_PATH is not signed with a Developer ID Application certificate."
+            codesign --display --verbose=2 "$APP_PATH" 2>&1 | grep '^Authority=' || true
+            exit 1
+          fi
       - name: Create DMG
         run: |
           STAGE="$RUNNER_TEMP/dmg"
-          mkdir -p "$STAGE"
-          cp -R "$APP_PATH" "$STAGE/"
+          mkdir -p "$STAGE" dist
+          # ditto, not cp -R: cp does not preserve the extended attributes that hold
+          # the code signatures of non-Mach-O files, which invalidates the bundle.
+          ditto "$APP_PATH" "$STAGE/$(basename "$APP_PATH")"
           ln -s /Applications "$STAGE/Applications"
           hdiutil create \
             -volname "Image Optimizer" \
             -srcfolder "$STAGE" \
             -ov -format UDZO \
+            "dist/image_optimizer-$VERSION-macos-arm64.dmg"
+      - name: Sign DMG
+        # Must happen before notarization; signing afterwards would strip the ticket.
+        if: env.CERTIFICATE_BASE64 != ''
+        run: |
+          codesign --force --timestamp --sign "$SIGNING_IDENTITY" \
             "dist/image_optimizer-$VERSION-macos-arm64.dmg"
       - name: Notarize DMG
         # Notarization is only meaningful for a Developer ID signed app.
@@ -180,12 +210,31 @@ jobs:
           && env.APPLE_TEAM_ID != '' && env.APPLE_APP_SPECIFIC_PASSWORD != ''
         run: |
           DMG="dist/image_optimizer-$VERSION-macos-arm64.dmg"
-          xcrun notarytool submit "$DMG" \
-            --apple-id "$APPLE_ID" \
-            --team-id "$APPLE_TEAM_ID" \
-            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-            --wait
+          CREDS=(--apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID"
+                 --password "$APPLE_APP_SPECIFIC_PASSWORD")
+
+          # notarytool exits 0 even when the submission comes back Invalid, so read the
+          # status out of the JSON instead of trusting the exit code, and always print
+          # the notary log — it is the only place that says *why* one was rejected.
+          SUBMISSION="$(xcrun notarytool submit "$DMG" "${CREDS[@]}" \
+            --wait --output-format json)"
+          echo "$SUBMISSION"
+          ID="$(echo "$SUBMISSION" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
+          STATUS="$(echo "$SUBMISSION" | python3 -c 'import json,sys; print(json.load(sys.stdin)["status"])')"
+
+          xcrun notarytool log "$ID" "${CREDS[@]}" || true
+
+          if [ "$STATUS" != "Accepted" ]; then
+            echo "::error::Notarization returned $STATUS for submission $ID (see log above)."
+            exit 1
+          fi
+
+          # Staple the app as well as the DMG: tickets are looked up by code-directory
+          # hash, so the same submission covers the .app that goes into the zip below,
+          # which would otherwise need an online Gatekeeper check to launch.
           xcrun stapler staple "$DMG"
+          xcrun stapler staple "$APP_PATH"
+          xcrun stapler validate "$DMG"
       - name: Create portable archive
         run: |
           ditto -c -k --keepParent "$APP_PATH" \
