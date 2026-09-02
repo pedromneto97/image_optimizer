@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' show basenameWithoutExtension;
 import 'package:path_provider/path_provider.dart';
 
 import '../../../domain/exceptions.dart';
@@ -29,7 +30,7 @@ class ImageOptimizerCubit extends Cubit<ImageOptimizerState> {
       }
 
       final outputPath = await _buildOutputPath(
-        pickedFile.name.split('.').first,
+        basenameWithoutExtension(pickedFile.name),
       );
       emit(
         ImageOptimizerOptimizing.fromImageOptimizerState(
@@ -49,6 +50,7 @@ class ImageOptimizerCubit extends Cubit<ImageOptimizerState> {
         OptimizeImageSuccess.fromImageOptimizerState(
           state as ImageOptimizerFilePicked,
           outputQuality: result.selectedQuality,
+          frameCount: result.frameCount,
         ),
       );
     } on ImageOptimizationException catch (e) {

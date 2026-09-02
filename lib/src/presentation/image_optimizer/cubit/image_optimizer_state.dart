@@ -124,25 +124,32 @@ final class OptimizeImageSuccess extends ImageOptimizerFilePicked {
     required super.pickedFile,
     required super.outputPath,
     required this.outputQuality,
+    required this.frameCount,
     required super.minimumQuality,
   });
 
   factory OptimizeImageSuccess.fromImageOptimizerState(
     ImageOptimizerFilePicked state, {
     required int outputQuality,
+    required int frameCount,
   }) => OptimizeImageSuccess(
     pickedFile: state.pickedFile,
     outputPath: state.outputPath,
     outputQuality: outputQuality,
+    frameCount: frameCount,
     minimumQuality: state.minimumQuality,
   );
 
+  /// Frames in the output. 1 for a still image, more for an animation.
+  final int frameCount;
   final int outputQuality;
+
+  bool get isAnimated => frameCount > 1;
 
   Future<int> get outputFileSizeBytes async => File(outputPath).length();
 
   @override
-  List<Object?> get props => [...super.props, outputQuality];
+  List<Object?> get props => [...super.props, outputQuality, frameCount];
 
   Future<int> get sizeDifferenceBytes async {
     final inputFile = File(pickedFile.path);
@@ -162,10 +169,12 @@ final class OptimizeImageSuccess extends ImageOptimizerFilePicked {
     XFile? pickedFile,
     String? outputPath,
     int? outputQuality,
+    int? frameCount,
   }) => OptimizeImageSuccess(
     pickedFile: pickedFile ?? this.pickedFile,
     outputPath: outputPath ?? this.outputPath,
     outputQuality: outputQuality ?? this.outputQuality,
+    frameCount: frameCount ?? this.frameCount,
     minimumQuality: minimumQuality ?? this.minimumQuality,
   );
 }

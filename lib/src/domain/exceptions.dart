@@ -22,6 +22,14 @@ class OutputImageWriteException extends ImageOptimizationException {
   const OutputImageWriteException();
 }
 
+class AnimationDecodingException extends ImageOptimizationException {
+  const AnimationDecodingException();
+}
+
+class AnimationEncodingException extends ImageOptimizationException {
+  const AnimationEncodingException();
+}
+
 class InvalidOptimizerParametersException extends ImageOptimizationException {
   const InvalidOptimizerParametersException();
 }
