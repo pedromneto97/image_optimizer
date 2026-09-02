@@ -21,6 +21,7 @@ class FfiImageOptimizerRepository implements ImageOptimizerRepository {
       minimumQuality: minimumQuality,
       outputPath: outputPath,
     ),
+    debugName: 'optimize_image_ffi',
   );
 }
 
@@ -48,7 +49,9 @@ OptimizationResult _optimizeSync({
       resultPointer,
     );
     final ffiResult = resultPointer.ref;
-    final effectiveErrorCode = errorCode == 0 ? ffiResult.error_code : errorCode;
+    final effectiveErrorCode = errorCode == 0
+        ? ffiResult.error_code
+        : errorCode;
 
     if (effectiveErrorCode != 0) {
       _throwExceptionFromCode(effectiveErrorCode);
