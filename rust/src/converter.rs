@@ -1,6 +1,7 @@
 use std::{
     fs::{self, File},
     io::BufReader,
+    marker::PhantomData,
     path::Path,
 };
 
@@ -12,8 +13,9 @@ use libwebp_sys::{
     WEBP_MAX_DIMENSION, WebPAnimEncoder as WebPAnimEncoderHandle, WebPAnimEncoderAdd,
     WebPAnimEncoderAssemble, WebPAnimEncoderDelete, WebPAnimEncoderNewInternal,
     WebPAnimEncoderOptions, WebPAnimEncoderOptionsInitInternal, WebPConfig, WebPData,
-    WebPDataClear, WebPEncodeRGB, WebPEncodeRGBA, WebPFree, WebPGetMuxABIVersion, WebPPicture,
-    WebPPictureFree, WebPPictureImportRGBA,
+    WebPDataClear, WebPDemuxDelete, WebPDemuxGetI, WebPDemuxInternal, WebPDemuxer, WebPEncodeRGB,
+    WebPEncodeRGBA, WebPFormatFeature, WebPFree, WebPGetDemuxABIVersion, WebPGetMuxABIVersion,
+    WebPPicture, WebPPictureFree, WebPPictureImportRGBA,
 };
 
 use crate::result::{ConverterError, ConverterResult, OptimizationOutcome};
@@ -241,6 +243,47 @@ impl Drop for AnimData {
     }
 }
 
+/// Reads an assembled WebP bitstream back to find out what it really contains.
+///
+/// Borrows the bytes rather than copying them — libwebp parses in place and
+/// keeps pointing at the caller's buffer — so the lifetime is load-bearing.
+struct Demuxer<'a> {
+    ptr: *mut WebPDemuxer,
+    _data: PhantomData<&'a WebPData>,
+}
+
+impl<'a> Demuxer<'a> {
+    fn new(data: &'a WebPData) -> ConverterResult<Self> {
+        // No partial parsing and no state to read back: the whole bitstream is
+        // already in memory, so anything short of a clean parse means the
+        // encoder handed us something broken.
+        let ptr =
+            unsafe { WebPDemuxInternal(data, 0, std::ptr::null_mut(), WebPGetDemuxABIVersion()) };
+
+        if ptr.is_null() {
+            return Err(ConverterError::AnimationEncodingFailed);
+        }
+
+        Ok(Self {
+            ptr,
+            _data: PhantomData,
+        })
+    }
+
+    /// Frames the bitstream actually carries. A still WebP reports 1.
+    fn frame_count(&self) -> u32 {
+        unsafe { WebPDemuxGetI(self.ptr, WebPFormatFeature::WEBP_FF_FRAME_COUNT) }
+    }
+}
+
+impl Drop for Demuxer<'_> {
+    fn drop(&mut self) {
+        unsafe {
+            WebPDemuxDelete(self.ptr);
+        }
+    }
+}
+
 fn encode(image: &ImageData, quality: f32) -> ConverterResult<Vec<u8>> {
     let mut out_buf = std::ptr::null_mut();
 
@@ -277,7 +320,14 @@ fn encode(image: &ImageData, quality: f32) -> ConverterResult<Vec<u8>> {
 
 struct EncodedAnimation {
     bytes: Vec<u8>,
+    /// Frames in the assembled bitstream. `WebPAnimEncoder` folds a frame into
+    /// its predecessor whenever the pixels repeat, and writes a lone survivor
+    /// as a plain still WebP, so this can come in under `decoded_frames`.
     frame_count: u32,
+    /// Frames read out of the GIF. Unlike `frame_count` this does not move with
+    /// the quality candidate, so it is what decides whether the *input* is an
+    /// animation at all.
+    decoded_frames: u32,
 }
 
 /// Encodes the whole GIF at `image_path` as one animated WebP at `quality`.
@@ -317,7 +367,7 @@ fn encode_animation(image_path: &str, quality: f32) -> ConverterResult<EncodedAn
     let encoder = AnimEncoder::new(width, height, &options)?;
 
     let mut timestamp_ms: i32 = 0;
-    let mut frame_count: u32 = 0;
+    let mut decoded_frames: u32 = 0;
 
     for frame in decoder.into_frames() {
         let frame = frame.map_err(|_| ConverterError::FailedToDecodeAnimation)?;
@@ -341,10 +391,10 @@ fn encode_animation(image_path: &str, quality: f32) -> ConverterResult<EncodedAn
         }
 
         timestamp_ms = timestamp_ms.saturating_add(duration_ms);
-        frame_count += 1;
+        decoded_frames += 1;
     }
 
-    if frame_count == 0 {
+    if decoded_frames == 0 {
         return Err(ConverterError::FailedToDecodeAnimation);
     }
 
@@ -372,7 +422,18 @@ fn encode_animation(image_path: &str, quality: f32) -> ConverterResult<EncodedAn
         return Err(ConverterError::AnimationEncodingFailed);
     }
 
-    Ok(EncodedAnimation { bytes, frame_count })
+    // Count what came out, not what went in: the encoder merges frames it finds
+    // redundant, so every frame added is an upper bound, not the answer.
+    let frame_count = Demuxer::new(&assembled.inner)?.frame_count();
+    if frame_count == 0 {
+        return Err(ConverterError::AnimationEncodingFailed);
+    }
+
+    Ok(EncodedAnimation {
+        bytes,
+        frame_count,
+        decoded_frames,
+    })
 }
 
 /// Bytes per quality point; lower is better.
@@ -452,8 +513,13 @@ fn optimize_animation(
         let encoded = encode_animation(image_path, f32::from(quality))?;
 
         // A one-frame GIF is a still image wearing a GIF hat; the still
-        // encoder gives it a smaller, non-animated container.
-        if encoded.frame_count <= 1 {
+        // encoder gives it a smaller, non-animated container. This asks the
+        // *input* frame count, not the encoded one: how many frames survive
+        // encoding varies with quality, so keying on that would abandon the
+        // sweep on some candidates and not others. A multi-frame GIF the
+        // encoder flattens to one frame is already a still WebP by then, and
+        // `frame_count` reports it as such.
+        if encoded.decoded_frames <= 1 {
             return optimize_still(image_path, output_path, min_quality);
         }
 
@@ -464,8 +530,12 @@ fn optimize_animation(
         }
     }
 
-    let (quality, EncodedAnimation { bytes, frame_count }) =
-        best.ok_or(ConverterError::AnimationEncodingFailed)?;
+    let (
+        quality,
+        EncodedAnimation {
+            bytes, frame_count, ..
+        },
+    ) = best.ok_or(ConverterError::AnimationEncodingFailed)?;
     fs::write(output_path, bytes).map_err(|_| ConverterError::FailedToWriteOutputFile)?;
 
     Ok(OptimizationOutcome {
@@ -547,13 +617,19 @@ mod tests {
     }
 
     fn write_gif(path: &TempPath, frame_count: u32, repeat: Repeat) {
+        // Distinct colours per frame so libwebp cannot merge them away.
+        let shades = (0..frame_count).map(|index| (index * 60 % 200 + 20) as u8);
+
+        write_gif_frames(path, shades, repeat);
+    }
+
+    /// Writes one frame per shade, so a repeated shade is a repeated frame.
+    fn write_gif_frames(path: &TempPath, shades: impl IntoIterator<Item = u8>, repeat: Repeat) {
         let file = fs::File::create(&path.path).expect("create test gif");
         let mut encoder = GifEncoder::new(file);
         encoder.set_repeat(repeat).expect("set repeat");
 
-        for index in 0..frame_count {
-            // Distinct colours per frame so libwebp cannot merge them away.
-            let shade = (index * 60 % 200 + 20) as u8;
+        for shade in shades {
             let buffer = RgbaImage::from_fn(16, 16, |x, y| {
                 image::Rgba([shade, x as u8 * 12, y as u8 * 12, 255])
             });
@@ -777,6 +853,50 @@ mod tests {
             chunks_named(&chunks, b"ANIM").is_empty(),
             "a single frame should not produce an animation"
         );
+    }
+
+    #[test]
+    fn reports_the_frame_count_the_encoder_actually_wrote() {
+        let input = TempPath::new(".gif");
+        let output = TempPath::new(".webp");
+        // Five frames, three distinct: libwebp folds each repeat into the frame
+        // before it and stretches that frame's duration instead.
+        write_gif_frames(&input, [20u8, 20, 90, 90, 160], Repeat::Infinite);
+
+        let outcome = convert(&input, &output, 80);
+        let bytes = fs::read(&output.path).expect("read optimized webp");
+        let chunks = riff_chunks(&bytes);
+
+        assert_eq!(
+            chunks_named(&chunks, b"ANMF").len(),
+            3,
+            "expected the repeated frames to be merged away"
+        );
+        assert_eq!(
+            outcome.frame_count, 3,
+            "frame count should describe the encoded file, not the decoded input"
+        );
+    }
+
+    #[test]
+    fn frames_merged_down_to_one_are_not_reported_as_animated() {
+        let input = TempPath::new(".gif");
+        let output = TempPath::new(".webp");
+        write_gif_frames(&input, [40u8; 5], Repeat::Infinite);
+
+        let outcome = convert(&input, &output, 80);
+        let bytes = fs::read(&output.path).expect("read optimized webp");
+        assert_is_webp(&bytes);
+
+        // Nothing moves, so the encoder drops the animation container entirely.
+        // Reporting the five decoded frames here would label a static image as
+        // an animation in the UI.
+        let chunks = riff_chunks(&bytes);
+        assert!(
+            chunks_named(&chunks, b"ANIM").is_empty(),
+            "a fully merged animation should not stay animated"
+        );
+        assert_eq!(outcome.frame_count, 1);
     }
 
     #[test]

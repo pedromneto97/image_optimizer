@@ -115,10 +115,16 @@ the quality returned is often *higher* than the requested minimum.
   GIF falls back to the still path. `allow_mixed` lets libwebp pick lossy or
   lossless per frame, which palette-based GIF content usually wins from.
 
-Two libwebp contracts the animation path depends on: the last
+Three libwebp contracts the animation path depends on: the last
 `WebPAnimEncoderAdd` must pass a null frame (it is what fixes the final frame's
-duration), and `WebPAnimEncoderNewInternal` validates only total *area*, so the
-per-axis 16383 limit is checked in `canvas_is_encodable`.
+duration); `WebPAnimEncoderNewInternal` validates only total *area*, so the
+per-axis 16383 limit is checked in `canvas_is_encodable`; and frames added are
+not frames written — the encoder folds a repeated frame into its predecessor and
+drops the animation container entirely when only one survives. So the reported
+`frame_count` is demuxed back out of the assembled bitstream
+(`WEBP_FF_FRAME_COUNT`), never counted on the way in. The decoded count still
+decides the one-frame-GIF fallback, because how many frames survive encoding
+moves with the quality candidate and the fallback must not.
 
 ## State conventions
 
