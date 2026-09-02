@@ -7,6 +7,10 @@ void main(List<String> args) async {
   hierarchicalLoggingEnabled = true;
 
   await build(args, (input, output) async {
+    if (!input.config.buildCodeAssets) {
+      return;
+    }
+
     await RustBuilder(
       assetName: 'src/ffi.g.dart',
       extraCargoEnvironmentVariables: input.config.code.targetOS != OS.macOS

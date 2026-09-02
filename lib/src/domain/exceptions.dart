@@ -22,12 +22,28 @@ class OutputImageWriteException extends ImageOptimizationException {
   const OutputImageWriteException();
 }
 
+class AnimationDecodingException extends ImageOptimizationException {
+  const AnimationDecodingException();
+}
+
+class AnimationEncodingException extends ImageOptimizationException {
+  const AnimationEncodingException();
+}
+
 class InvalidOptimizerParametersException extends ImageOptimizationException {
   const InvalidOptimizerParametersException();
 }
 
 class MissingOutputImageException extends ImageOptimizationException {
   const MissingOutputImageException();
+}
+
+/// A failure that never reached the optimizer's own error codes — the
+/// conversion isolate dying, for one. [error] is whatever was actually thrown.
+class UnexpectedOptimizationFailureException extends ImageOptimizationException {
+  const UnexpectedOptimizationFailureException(this.error);
+
+  final Object error;
 }
 
 class UnknownImageOptimizationException extends ImageOptimizationException {

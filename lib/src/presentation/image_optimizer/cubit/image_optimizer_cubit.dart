@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' show basenameWithoutExtension, join;
 import 'package:path_provider/path_provider.dart';
 
 import '../../../domain/exceptions.dart';
@@ -28,8 +29,13 @@ class ImageOptimizerCubit extends Cubit<ImageOptimizerState> {
         return;
       }
 
+      // Pin the slider value for this run. The conversion isolate leaves the
+      // UI live, so the slider can move while it works, and the result has to
+      // report the quality the conversion was asked for — not the one the
+      // slider happens to sit at when it lands.
+      final minimumQuality = state.minimumQuality;
       final outputPath = await _buildOutputPath(
-        pickedFile.name.split('.').first,
+        basenameWithoutExtension(pickedFile.name),
       );
       emit(
         ImageOptimizerOptimizing.fromImageOptimizerState(
@@ -42,12 +48,14 @@ class ImageOptimizerCubit extends Cubit<ImageOptimizerState> {
       final result = await _optimizeImage.call(
         inputPath: pickedFile.path,
         outputPath: outputPath,
-        minimumQuality: state.minimumQuality,
+        minimumQuality: minimumQuality,
       );
 
       emit(
         OptimizeImageSuccess.fromImageOptimizerState(
           state as ImageOptimizerFilePicked,
+          frameCount: result.frameCount,
+          minimumQuality: minimumQuality,
           outputQuality: result.selectedQuality,
         ),
       );
@@ -59,7 +67,20 @@ class ImageOptimizerCubit extends Cubit<ImageOptimizerState> {
         ),
       );
     } catch (e) {
-      emit(FailedToPickImage.fromImageOptimizerState(state));
+      // Not every failure past this point is one of the optimizer's own error
+      // codes — a dead conversion isolate throws a RemoteError. Once a file is
+      // picked those still belong in the failure state, which the page renders;
+      // FailedToPickImage drops the picked file and would show as nothing.
+      final currentState = state;
+
+      emit(
+        currentState is ImageOptimizerFilePicked
+            ? ImageOptimizerFailure.fromImageOptimizerState(
+                currentState,
+                exception: UnexpectedOptimizationFailureException(e),
+              )
+            : FailedToPickImage.fromImageOptimizerState(currentState),
+      );
     }
   }
 
@@ -72,6 +93,9 @@ class ImageOptimizerCubit extends Cubit<ImageOptimizerState> {
   Future<String> _buildOutputPath(String fileName) async {
     final outputDir = await getApplicationDocumentsDirectory();
 
-    return '${outputDir.path}${Platform.pathSeparator}${fileName}_${DateTime.now().millisecondsSinceEpoch}.webp';
+    return join(
+      outputDir.path,
+      '${fileName}_${DateTime.now().millisecondsSinceEpoch}.webp',
+    );
   }
 }

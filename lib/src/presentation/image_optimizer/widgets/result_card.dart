@@ -26,7 +26,7 @@ class ResultCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Optimized WebP',
+              state.isAnimated ? 'Optimized animated WebP' : 'Optimized WebP',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
@@ -56,6 +56,8 @@ class ResultCard extends StatelessWidget {
               label: 'Actual quality',
               value: '${state.outputQuality}',
             ),
+            if (state.isAnimated)
+              FileDetailRow(label: 'Frames', value: '${state.frameCount}'),
             FutureBuilder(
               future: state.outputFileSizeBytes,
               builder: (context, asyncSnapshot) => FileDetailRow(

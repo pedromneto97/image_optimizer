@@ -17,13 +17,21 @@ typedef struct OptimizeImageOutput {
    */
   uint8_t quality;
   /**
-   * Error code: 0 = success, 1-5 = errors (see optimize_image_ffi docs)
+   * Number of frames written to the output. 1 for a still image, N for an
+   * animated WebP produced from an animated GIF.
+   */
+  uint32_t frame_count;
+  /**
+   * Error code: 0 = success, 1-7 = errors (see optimize_image_ffi docs)
    */
   int32_t error_code;
 } OptimizeImageOutput;
 
 /**
  * Optimize an image and write it to the specified output path
+ *
+ * Animated GIFs are converted to animated WebP, preserving frame delays and
+ * loop count. Every other supported input produces a still WebP.
  *
  * # Arguments
  * * `image_path` - C string pointer to the input image file path
@@ -33,12 +41,16 @@ typedef struct OptimizeImageOutput {
  *
  * # Return Value
  * Returns via the `output` parameter:
- * * `error_code = 0` on success (quality contains the selected quality level)
+ * * `error_code = 0` on success (quality contains the selected quality level,
+ *   frame_count the number of frames written)
  * * `error_code = 1` if input file not found
  * * `error_code = 2` if failed to open input image
  * * `error_code = 3` if image type not supported
  * * `error_code = 4` if encoding failed
  * * `error_code = 5` if output file write failed
+ * * `error_code = 6` if the animation frames could not be decoded
+ * * `error_code = 7` if animated WebP encoding failed (also reported when the
+ *   canvas exceeds the 16383x16383 WebP limit)
  * * `error_code = -1` if parameters are invalid (null pointers)
  *
  * # Safety
