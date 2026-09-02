@@ -22,3 +22,23 @@ jobs:
         run: flutter pub get
       - name: Run Flutter analyze
         run: flutter analyze
+
+  rust:
+    name: Rust check and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust toolchain
+        run: rustup toolchain install
+      - name: Cache Cargo registry
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Test
+        run: cargo test
