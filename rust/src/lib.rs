@@ -69,7 +69,7 @@ unsafe fn write_output(
 /// * `output_path` must be a valid, null-terminated C string
 /// * `output` must be a valid, non-null pointer to an OptimizeImageOutput struct
 #[unsafe(no_mangle)]
-pub extern "C" fn optimize_image_ffi(
+pub unsafe extern "C" fn optimize_image_ffi(
     image_path: *const c_char,
     min_quality: u8,
     output_path: *const c_char,
@@ -120,7 +120,7 @@ mod tests {
         let image_path = CString::new("input.png").expect("valid C string");
         let mut output = empty_output();
 
-        let result = optimize_image_ffi(image_path.as_ptr(), 80, ptr::null(), &mut output);
+        let result = unsafe { optimize_image_ffi(image_path.as_ptr(), 80, ptr::null(), &mut output) };
 
         assert_eq!(result, -1);
         assert_eq!(output.error_code, -1);
@@ -131,7 +131,8 @@ mod tests {
         let output_path = CString::new("output.webp").expect("valid C string");
         let mut output = empty_output();
 
-        let result = optimize_image_ffi(ptr::null(), 80, output_path.as_ptr(), &mut output);
+        let result =
+            unsafe { optimize_image_ffi(ptr::null(), 80, output_path.as_ptr(), &mut output) };
 
         assert_eq!(result, -1);
         assert_eq!(output.error_code, -1);
@@ -142,12 +143,14 @@ mod tests {
         let image_path = CString::new("input.png").expect("valid C string");
         let output_path = CString::new("output.webp").expect("valid C string");
 
-        let result = optimize_image_ffi(
-            image_path.as_ptr(),
-            80,
-            output_path.as_ptr(),
-            ptr::null_mut(),
-        );
+        let result = unsafe {
+            optimize_image_ffi(
+                image_path.as_ptr(),
+                80,
+                output_path.as_ptr(),
+                ptr::null_mut(),
+            )
+        };
 
         assert_eq!(result, -1);
     }
@@ -158,7 +161,9 @@ mod tests {
         let output_path = CString::new("output.webp").expect("valid C string");
         let mut output = empty_output();
 
-        let result = optimize_image_ffi(image_path.as_ptr(), 80, output_path.as_ptr(), &mut output);
+        let result = unsafe {
+            optimize_image_ffi(image_path.as_ptr(), 80, output_path.as_ptr(), &mut output)
+        };
 
         assert_eq!(result, 1);
         assert_eq!(output.error_code, 1);

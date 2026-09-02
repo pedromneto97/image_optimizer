@@ -100,11 +100,10 @@ fn open_gif(image_path: &str) -> ConverterResult<GifDecoder<BufReader<File>>> {
 /// GIF delays are whole centiseconds, so the millisecond conversion is exact.
 fn frame_duration_ms(delay: Delay) -> i32 {
     let (numerator, denominator) = delay.numer_denom_ms();
-    let duration = if denominator == 0 {
-        0
-    } else {
-        (numerator / denominator).min(i32::MAX as u32) as i32
-    };
+    let duration = numerator
+        .checked_div(denominator)
+        .unwrap_or(0)
+        .min(i32::MAX as u32) as i32;
 
     duration.max(MIN_FRAME_DURATION_MS)
 }
