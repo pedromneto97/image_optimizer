@@ -32,7 +32,8 @@ This project is a Flutter desktop application to optimize image converting to We
   the sole automated gate, so it must be clean.
 - `cargo run` (`rust/src/main.rs`) converts `rust/example.jpeg` →
   `rust/output.webp` at min quality 80. Fastest loop for conversion-algorithm
-  work; skips the whole Flutter boot.
+  work; skips the whole Flutter boot. `cargo run -- some.gif` converts that file
+  instead — the fast loop for animation work.
 - `test/` is **empty** — there is no Dart test suite yet. Rust is the only place
   with tests (`rust/src/lib.rs`, `rust/src/converter.rs`).
 - The Rust toolchain is pinned to 1.96.0 with six cross targets in
@@ -67,8 +68,10 @@ One function, `optimize_image_ffi`, crosses four artifacts that must stay in
 sync. Changing the signature or adding an error variant means touching all four:
 
 1. `rust/src/lib.rs` — `optimize_image_ffi` plus
-   `OptimizeImageOutput { quality, error_code }` and the `ConverterError` → code
-   match.
+   `OptimizeImageOutput { quality, frame_count, error_code }`. The
+   `ConverterError` → code table lives on `ConverterError::code()` in
+   `rust/src/result.rs` and is exhaustive, so a new variant is a compile error
+   there.
 2. `rust/bindings.h` — **generated** by cbindgen from `rust/build.rs` on every
    `cargo build`. Do not hand-edit.
 3. `lib/src/ffi.g.dart` — **generated** by `dart run tool/ffigen.dart` from
@@ -81,19 +84,41 @@ sync. Changing the signature or adding an error variant means touching all four:
 Regeneration order: `cargo build` (refreshes `bindings.h`), then
 `dart run tool/ffigen.dart`.
 
-Error codes, duplicated between the Rust doc comment and the Dart switch:
+Error codes, duplicated between `ConverterError::code()`, the Rust doc comment
+and the Dart switch:
 `0` ok · `1` file not found · `2` open failed · `3` unsupported type ·
-`4` encode failed · `5` write failed · `-1` invalid params (null pointer).
+`4` encode failed · `5` write failed · `6` animation decode failed ·
+`7` animated encode failed · `-1` invalid params (null pointer).
 Dart adds `MissingOutputImageException` for when the encoder reports success but
 no file landed on disk.
 
+The FFI call runs inside `Isolate.run` (`FfiImageOptimizerRepository`) because
+it never yields — an animated GIF re-encodes every frame once per quality
+candidate and would otherwise freeze the UI. That is why `_optimizeSync` and
+`_throwExceptionFromCode` are top-level: an `Isolate.run` closure cannot
+capture `this`.
+
 ## Optimization algorithm
 
-`optimize_image` in `rust/src/converter.rs` decodes once, then sweeps quality
-`min_quality..=100` in steps of 2, encoding at each step and scoring
-`bytes / quality`. The lowest score wins, so the quality it returns is often
-*higher* than the requested minimum. Only `Rgb8` and `Rgba8` inputs are
-supported; anything else is `ImageTypeNotSupported`.
+`optimize_image` in `rust/src/converter.rs` sniffs the format, then takes one of
+two paths. Both score candidates as `bytes / quality` and keep the lowest, so
+the quality returned is often *higher* than the requested minimum.
+
+- **Still images** decode once and sweep `min_quality..=100` in steps of 2 (~11
+  encodes). Only `Rgb8` and `Rgba8` inputs are supported; anything else is
+  `ImageTypeNotSupported`.
+- **GIFs** become animated WebP via libwebp's `WebPAnimEncoder`, preserving
+  frame delays and loop count. Because each candidate re-encodes *every* frame,
+  the sweep is capped at `MAX_ANIMATION_CANDIDATES` (4) spread across
+  `min_quality..=100`. The GIF is re-decoded per candidate rather than held in
+  memory — a 1080p 200-frame GIF would be 1.6 GB of decoded frames. A one-frame
+  GIF falls back to the still path. `allow_mixed` lets libwebp pick lossy or
+  lossless per frame, which palette-based GIF content usually wins from.
+
+Two libwebp contracts the animation path depends on: the last
+`WebPAnimEncoderAdd` must pass a null frame (it is what fixes the final frame's
+duration), and `WebPAnimEncoderNewInternal` validates only total *area*, so the
+per-axis 16383 limit is checked in `canvas_is_encodable`.
 
 ## State conventions
 
@@ -144,6 +169,15 @@ build jobs:
   installable more widely), `.deb` plus tarball
 
 Force a version with a `Release-As:` commit trailer.
+
+The macOS runner has no certificate at build time — the job builds first and
+signs with Developer ID afterwards. So all three Runner configurations must keep
+`"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-"` in
+`macos/Runner.xcodeproj/project.pbxproj`; opening the project in Xcode can
+rewrite it to `Apple Development`, which fails the release build with
+*No signing certificate "Mac Development" found*. Entitlements are read back off
+the built app rather than from `Runner/Release.entitlements`, because Xcode
+merges the `ENABLE_*` capability build settings into them.
 
 # Repo conventions
 
