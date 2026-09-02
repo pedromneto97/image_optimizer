@@ -128,16 +128,20 @@ final class OptimizeImageSuccess extends ImageOptimizerFilePicked {
     required super.minimumQuality,
   });
 
+  /// [minimumQuality] is the value the conversion actually ran with, which is
+  /// not always `state.minimumQuality`: the slider stays live while the
+  /// isolate works, so it can move between the request and the result.
   factory OptimizeImageSuccess.fromImageOptimizerState(
     ImageOptimizerFilePicked state, {
-    required int outputQuality,
     required int frameCount,
+    required int minimumQuality,
+    required int outputQuality,
   }) => OptimizeImageSuccess(
     pickedFile: state.pickedFile,
     outputPath: state.outputPath,
     outputQuality: outputQuality,
     frameCount: frameCount,
-    minimumQuality: state.minimumQuality,
+    minimumQuality: minimumQuality,
   );
 
   /// Frames in the output. 1 for a still image, more for an animation.

@@ -16,10 +16,20 @@ class ImageOptimizerPage extends StatelessWidget {
     appBar: AppBar(title: const Text('Image Optimizer')),
     body: BlocListener<ImageOptimizerCubit, ImageOptimizerState>(
       listener: (context, state) {
-        if (state case ImageOptimizerFailure(:final exception)) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(imageOptimizerErrorMessage(exception))),
-          );
+        // FailedToPickImage renders as nothing at all — it is not a
+        // ImageOptimizerFilePicked, so both selectors below collapse — so the
+        // snackbar is the only way it reaches the user.
+        final message = switch (state) {
+          ImageOptimizerFailure(:final exception) =>
+            imageOptimizerErrorMessage(exception),
+          FailedToPickImage() => 'The image could not be picked.',
+          _ => null,
+        };
+
+        if (message != null) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(message)));
         }
       },
       child: ListView(
