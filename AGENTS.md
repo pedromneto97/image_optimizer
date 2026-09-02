@@ -139,7 +139,12 @@ build jobs:
 
 - **Windows** — signed MSIX plus portable zip
 - **macOS** — arm64 only (`FLUTTER_MACOS_ARM64_ONLY`), signed inside-out
-  (dylibs → frameworks → app, not `--deep`), notarized, DMG plus zip
+  (dylibs → frameworks → app, not `--deep`), notarized, DMG plus zip.
+  `MACOS_CERTIFICATE_BASE64` must be a **Developer ID Application** `.p12` —
+  an Apple Development or Apple Distribution certificate signs and verifies
+  locally and is then rejected by the notary service. The job picks the
+  identity out of the keychain by certificate kind and signs by SHA-1 hash,
+  so there is no signing-identity secret to keep in sync
 - **Linux** — pinned to `ubuntu-22.04` deliberately (glibc 2.35 keeps the `.deb`
   installable more widely), `.deb` plus tarball
 
