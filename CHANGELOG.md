@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/pedromneto97/image_optimizer/compare/v1.0.0...v1.0.1) (2026-09-02)
+
+
+### Miscellaneous Chores
+
+* **window:** remove .appinstaller ([80ee7b6](https://github.com/pedromneto97/image_optimizer/commit/80ee7b66f27484952d49750e39980aaa7afe17d6))
+
 ## 1.0.0 (2026-06-26)
 
 
