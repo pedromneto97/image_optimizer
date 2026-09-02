@@ -37,7 +37,7 @@ This project is a Flutter desktop application to optimize image converting to We
   instead — the fast loop for animation work.
 - `test/` is **empty** — there is no Dart test suite yet. Rust is the only place
   with tests (`rust/src/lib.rs`, `rust/src/converter.rs`).
-- The Rust toolchain is pinned to 1.96.0 with six cross targets in
+- The Rust toolchain is pinned to 1.98.0 with six cross targets in
   `rust/rust-toolchain.toml`; `rustup toolchain install` from `rust/` sets it up.
 
 # Architecture
