@@ -60,10 +60,3 @@ msix_config:
   publisher: "E=pedromneto97@gmail.com, CN=Pedro de Mattos Mariano Mendes Neto,
     OU=IT, O=Pedro Mendes Dev, L=Curitiba, S=Parana, C=BR"
   logo_path: logo.png
-  app_installer:
-    publish_folder_path: dist
-    remote_url: https://pedro-mendes.eng.br/apps/image-optimizer
-    hours_between_update_checks: 0
-    automatic_background_task: true
-    update_blocks_activation: true
-    show_prompt: true
