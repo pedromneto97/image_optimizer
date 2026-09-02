@@ -170,7 +170,21 @@ struct Picture {
 
 impl Picture {
     /// Builds an ARGB picture from a tightly packed RGBA8 buffer.
+    ///
+    /// `width`/`height` describe `rgba` itself, never the canvas it will be
+    /// drawn onto: libwebp reads `height` rows of `width * 4` bytes straight
+    /// off the pointer, so a buffer smaller than that is an out-of-bounds
+    /// read. The dimension check also keeps the stride inside `i32`.
     fn from_rgba(rgba: &[u8], width: u32, height: u32) -> ConverterResult<Self> {
+        if !canvas_is_encodable(width, height) {
+            return Err(ConverterError::AnimationEncodingFailed);
+        }
+
+        // Both axes are inside libwebp's limit by now, so this cannot overflow.
+        if rgba.len() < width as usize * height as usize * 4 {
+            return Err(ConverterError::AnimationEncodingFailed);
+        }
+
         let mut inner = WebPPicture::new().map_err(|_| ConverterError::AnimationEncodingFailed)?;
         inner.use_argb = 1;
         inner.width = width as i32;
@@ -311,9 +325,12 @@ fn encode_animation(image_path: &str, quality: f32) -> ConverterResult<EncodedAn
 
         // The GIF decoder always yields a full canvas at (0, 0), already
         // composited for disposal and blending, so the buffer maps 1:1 onto
-        // the encoder canvas.
+        // the encoder canvas. Import it by its own dimensions all the same —
+        // the canvas size comes from a different decoder instance, and the
+        // import reads straight off the pointer.
         let buffer = frame.into_buffer();
-        let mut picture = Picture::from_rgba(buffer.as_raw(), width, height)?;
+        let (frame_width, frame_height) = buffer.dimensions();
+        let mut picture = Picture::from_rgba(buffer.as_raw(), frame_width, frame_height)?;
 
         // `timestamp_ms` is the frame's *start* time; libwebp derives each
         // duration from the gap to the next one.
@@ -425,29 +442,31 @@ fn optimize_animation(
     output_path: &str,
     min_quality: u8,
 ) -> ConverterResult<OptimizationOutcome> {
-    let mut best: Option<(u8, Vec<u8>)> = None;
+    // The frame count travels with the bytes: reporting the last candidate's
+    // count next to a different candidate's file would be a lie the moment a
+    // decode ever stops early on one pass.
+    let mut best: Option<(u8, EncodedAnimation)> = None;
     let mut best_score = f32::MAX;
-    let mut frame_count = 0;
 
     for quality in animation_candidates(min_quality) {
         let encoded = encode_animation(image_path, f32::from(quality))?;
-        frame_count = encoded.frame_count;
 
         // A one-frame GIF is a still image wearing a GIF hat; the still
         // encoder gives it a smaller, non-animated container.
-        if frame_count <= 1 {
+        if encoded.frame_count <= 1 {
             return optimize_still(image_path, output_path, min_quality);
         }
 
         let candidate_score = score(encoded.bytes.len(), quality);
         if candidate_score < best_score {
             best_score = candidate_score;
-            best = Some((quality, encoded.bytes));
+            best = Some((quality, encoded));
         }
     }
 
-    let (quality, encoded) = best.ok_or(ConverterError::AnimationEncodingFailed)?;
-    fs::write(output_path, encoded).map_err(|_| ConverterError::FailedToWriteOutputFile)?;
+    let (quality, EncodedAnimation { bytes, frame_count }) =
+        best.ok_or(ConverterError::AnimationEncodingFailed)?;
+    fs::write(output_path, bytes).map_err(|_| ConverterError::FailedToWriteOutputFile)?;
 
     Ok(OptimizationOutcome {
         quality,
@@ -491,8 +510,8 @@ mod tests {
     };
 
     use super::{
-        ImageData, ImageType, MAX_ANIMATION_CANDIDATES, animation_candidates, canvas_is_encodable,
-        encode, optimize_image, score, still_candidates,
+        ImageData, ImageType, MAX_ANIMATION_CANDIDATES, Picture, animation_candidates,
+        canvas_is_encodable, encode, optimize_image, score, still_candidates,
     };
     use crate::result::OptimizationOutcome;
 
@@ -681,6 +700,16 @@ mod tests {
         // Area stays tiny, so only the per-axis check catches this one.
         assert!(!canvas_is_encodable(20000, 100));
         assert!(!canvas_is_encodable(0, 100));
+    }
+
+    #[test]
+    fn rejects_a_buffer_smaller_than_the_dimensions_it_claims() {
+        let rgba = vec![0u8; 4 * 4 * 4];
+
+        assert!(Picture::from_rgba(&rgba, 4, 4).is_ok());
+        // libwebp would read past the end of the allocation for these.
+        assert!(Picture::from_rgba(&rgba, 8, 8).is_err());
+        assert!(Picture::from_rgba(&rgba, 20000, 4).is_err());
     }
 
     #[test]

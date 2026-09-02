@@ -7,7 +7,7 @@ fn main() {
     // fast loop for animation work.
     let input = std::env::args()
         .nth(1)
-        .unwrap_or("example.jpeg".to_string());
+        .unwrap_or_else(|| "example.jpeg".to_string());
     let input_path = current_dir.join(input);
     let input_path = input_path.to_str().unwrap().to_string();
 
