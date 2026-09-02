@@ -28,15 +28,16 @@ This project is a Flutter desktop application to optimize image converting to We
 | Release build | `flutter build windows\|macos\|linux --release` |
 | MSIX package | `dart run msix:create --build-windows false --output-path dist` |
 
-- `.github/workflows/standard.yaml` runs only `flutter analyze` on PRs — it is
-  the sole automated gate, so it must be clean.
+- `.github/workflows/standard.yaml` is the only automated gate on PRs, so it must
+  be clean. It has two jobs: `build` runs `flutter analyze`; `rust` runs
+  `cargo clippy --all-targets -- -D warnings` and `cargo test` in `rust/`.
 - `cargo run` (`rust/src/main.rs`) converts `rust/example.jpeg` →
   `rust/output.webp` at min quality 80. Fastest loop for conversion-algorithm
   work; skips the whole Flutter boot. `cargo run -- some.gif` converts that file
   instead — the fast loop for animation work.
 - `test/` is **empty** — there is no Dart test suite yet. Rust is the only place
   with tests (`rust/src/lib.rs`, `rust/src/converter.rs`).
-- The Rust toolchain is pinned to 1.96.0 with six cross targets in
+- The Rust toolchain is pinned to 1.98.0 with six cross targets in
   `rust/rust-toolchain.toml`; `rustup toolchain install` from `rust/` sets it up.
 
 # Architecture
