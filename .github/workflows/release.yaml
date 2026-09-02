@@ -13,7 +13,271 @@ name: release-please
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
     steps:
       - uses: googleapis/release-please-action@v5
+        id: release
         with:
           release-type: dart
+
+  windows:
+    name: Build Windows
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
+      VERSION: ${{ needs.release-please.outputs.version }}
+      CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+      CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          pub-cache: true
+      - name: Cache Cargo registry
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Install Rust toolchain
+        working-directory: rust
+        run: rustup toolchain install
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Build Windows app
+        run: flutter build windows --release
+      - name: Decode signing certificate
+        if: env.CERTIFICATE_BASE64 != ''
+        run: echo "$CERTIFICATE_BASE64" | base64 -d > "$RUNNER_TEMP/certificate.pfx"
+      - name: Package MSIX (signed)
+        if: env.CERTIFICATE_BASE64 != ''
+        run: >
+          dart run msix:create
+          --build-windows false
+          --output-path dist
+          --output-name "image_optimizer-$VERSION-windows-x64"
+          --certificate-path "$RUNNER_TEMP/certificate.pfx"
+          --certificate-password "$CERTIFICATE_PASSWORD"
+      - name: Package MSIX (unsigned)
+        if: env.CERTIFICATE_BASE64 == ''
+        run: >
+          dart run msix:create
+          --build-windows false
+          --output-path dist
+          --output-name "image_optimizer-$VERSION-windows-x64"
+      - name: Create portable archive
+        working-directory: build/windows/x64/runner/Release
+        run: 7z a "$GITHUB_WORKSPACE/dist/image_optimizer-$VERSION-windows-x64.zip" ./*
+      - name: Upload to release
+        run: |
+          gh release upload "$TAG_NAME" \
+            "dist/image_optimizer-$VERSION-windows-x64.msix" \
+            "dist/image_optimizer-$VERSION-windows-x64.zip" \
+            --clobber
+
+  macos:
+    name: Build macOS
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: macos-latest
+    env:
+      TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
+      VERSION: ${{ needs.release-please.outputs.version }}
+      # Build an Apple Silicon binary instead of the default universal one.
+      FLUTTER_MACOS_ARM64_ONLY: "true"
+      CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+      CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      APP_PATH: build/macos/Build/Products/Release/image_optimizer.app
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          pub-cache: true
+      - name: Cache Cargo registry
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Install Rust toolchain
+        working-directory: rust
+        run: rustup toolchain install
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Build macOS app
+        run: flutter build macos --release
+      - name: Import signing certificate
+        if: env.CERTIFICATE_BASE64 != ''
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/build.keychain"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          echo "$CERTIFICATE_BASE64" | base64 -d > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" \
+            -k "$KEYCHAIN" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+      - name: Sign app bundle
+        if: env.CERTIFICATE_BASE64 != ''
+        run: |
+          # Sign nested code (Flutter framework, plugins, the Rust dylib) inside out,
+          # rather than relying on the deprecated --deep. Loose dylibs first, then the
+          # framework bundles that may contain them, then the app itself.
+          if [ -d "$APP_PATH/Contents/Frameworks" ]; then
+            find "$APP_PATH/Contents/Frameworks" -type f -name '*.dylib' -print0 |
+              while IFS= read -r -d '' item; do
+                codesign --force --options runtime --timestamp \
+                  --sign "$SIGNING_IDENTITY" "$item"
+              done
+            find "$APP_PATH/Contents/Frameworks" -maxdepth 1 -name '*.framework' -print0 |
+              while IFS= read -r -d '' item; do
+                codesign --force --options runtime --timestamp \
+                  --sign "$SIGNING_IDENTITY" "$item"
+              done
+          fi
+          codesign --force --options runtime --timestamp \
+            --entitlements macos/Runner/Release.entitlements \
+            --sign "$SIGNING_IDENTITY" "$APP_PATH"
+          codesign --verify --strict --verbose=2 "$APP_PATH"
+      - name: Create DMG
+        run: |
+          STAGE="$RUNNER_TEMP/dmg"
+          mkdir -p "$STAGE"
+          cp -R "$APP_PATH" "$STAGE/"
+          ln -s /Applications "$STAGE/Applications"
+          hdiutil create \
+            -volname "Image Optimizer" \
+            -srcfolder "$STAGE" \
+            -ov -format UDZO \
+            "dist/image_optimizer-$VERSION-macos-arm64.dmg"
+      - name: Notarize DMG
+        # Notarization is only meaningful for a Developer ID signed app.
+        if: >-
+          env.CERTIFICATE_BASE64 != '' && env.APPLE_ID != ''
+          && env.APPLE_TEAM_ID != '' && env.APPLE_APP_SPECIFIC_PASSWORD != ''
+        run: |
+          DMG="dist/image_optimizer-$VERSION-macos-arm64.dmg"
+          xcrun notarytool submit "$DMG" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --wait
+          xcrun stapler staple "$DMG"
+      - name: Create portable archive
+        run: |
+          ditto -c -k --keepParent "$APP_PATH" \
+            "dist/image_optimizer-$VERSION-macos-arm64.zip"
+      - name: Upload to release
+        run: |
+          gh release upload "$TAG_NAME" \
+            "dist/image_optimizer-$VERSION-macos-arm64.dmg" \
+            "dist/image_optimizer-$VERSION-macos-arm64.zip" \
+            --clobber
+
+  linux:
+    name: Build Linux
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    # Pinned rather than ubuntu-latest: building on 24.04 would require glibc 2.39
+    # on the user's machine. 22.04 (glibc 2.35) keeps the .deb installable more widely.
+    runs-on: ubuntu-22.04
+    env:
+      TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
+      VERSION: ${{ needs.release-please.outputs.version }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BUNDLE_PATH: build/linux/x64/release/bundle
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang cmake git ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev imagemagick
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          pub-cache: true
+      - name: Cache Cargo registry
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Install Rust toolchain
+        working-directory: rust
+        run: rustup toolchain install
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Build Linux app
+        run: flutter build linux --release
+      - name: Package Debian package
+        run: |
+          PKGROOT="$RUNNER_TEMP/deb"
+          APPDIR="$PKGROOT/usr/lib/image_optimizer"
+          mkdir -p \
+            "$APPDIR" \
+            "$PKGROOT/DEBIAN" \
+            "$PKGROOT/usr/bin" \
+            "$PKGROOT/usr/share/applications" \
+            "$PKGROOT/usr/share/icons/hicolor/256x256/apps"
+
+          cp -r "$BUNDLE_PATH/." "$APPDIR/"
+          ln -s /usr/lib/image_optimizer/image_optimizer "$PKGROOT/usr/bin/image_optimizer"
+          convert logo.png -resize 256x256 \
+            "$PKGROOT/usr/share/icons/hicolor/256x256/apps/image_optimizer.png"
+
+          cp linux/image_optimizer.desktop \
+            "$PKGROOT/usr/share/applications/br.eng.pedromendes.image_optimizer.desktop"
+
+          cat > "$PKGROOT/DEBIAN/control" <<EOF
+          Package: image-optimizer
+          Version: $VERSION
+          Section: graphics
+          Priority: optional
+          Architecture: amd64
+          Depends: libgtk-3-0, libblkid1, liblzma5
+          Installed-Size: $(du -sk "$PKGROOT" | cut -f1)
+          Maintainer: Pedro Mendes <pedromneto97@gmail.com>
+          Description: Optimize images by converting them to WebP
+           Image Optimizer converts images to WebP format, choosing the best
+           size/quality ratio for a given minimum quality.
+          EOF
+
+          dpkg-deb --build --root-owner-group "$PKGROOT" \
+            "dist/image-optimizer_${VERSION}_amd64.deb"
+      - name: Create portable archive
+        run: |
+          tar -czf "dist/image_optimizer-$VERSION-linux-x64.tar.gz" \
+            -C "$BUNDLE_PATH" .
+      - name: Upload to release
+        run: |
+          gh release upload "$TAG_NAME" \
+            "dist/image-optimizer_${VERSION}_amd64.deb" \
+            "dist/image_optimizer-$VERSION-linux-x64.tar.gz" \
+            --clobber

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Image Optimizer
+Comment=Optimize images by converting it to WebP and choosing the best quality/compression ratio
+Exec=image_optimizer
+Icon=image_optimizer
+Terminal=false
+Categories=Graphics;Utility;
