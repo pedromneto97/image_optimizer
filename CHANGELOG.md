@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/pedromneto97/image_optimizer/compare/v1.0.3...v1.1.0) (2026-09-02)
+
+
+### Features
+
+* Add GIF support and enhance error handling ([#11](https://github.com/pedromneto97/image_optimizer/issues/11)) ([cfa9485](https://github.com/pedromneto97/image_optimizer/commit/cfa9485a1d52ed94211848281be730a634ec6c88))
+
+
+### Bug Fixes
+
+* **rust:** Fix clippy lint ([4c7d26e](https://github.com/pedromneto97/image_optimizer/commit/4c7d26ef3ac95e61712031b139f7bca2c3b38ed6))
+
 ## [1.0.3](https://github.com/pedromneto97/image_optimizer/compare/v1.0.2...v1.0.3) (2026-09-02)
 
 
