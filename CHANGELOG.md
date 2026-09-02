@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/pedromneto97/image_optimizer/compare/v1.0.2...v1.0.3) (2026-09-02)
+
+
+### Bug Fixes
+
+* **macos:** fix build ([ced2708](https://github.com/pedromneto97/image_optimizer/commit/ced27085617f6b65937ba9a6168ea1ce9efcfb03))
+
 ## [1.0.2](https://github.com/pedromneto97/image_optimizer/compare/v1.0.1...v1.0.2) (2026-09-02)
 
 
