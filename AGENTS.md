@@ -99,6 +99,11 @@ candidate and would otherwise freeze the UI. That is why `_optimizeSync` and
 `_throwExceptionFromCode` are top-level: an `Isolate.run` closure cannot
 capture `this`.
 
+Each call spawns its own isolate, so batch parallelism lives entirely in
+`ImageOptimizerCubit.pickImages`: a pool of workers sharing one cursor, sized
+`(Platform.numberOfProcessors ~/ 2).clamp(1, 4)` (overridable through the
+`maxConcurrency` constructor argument). The cap bounds memory for animated GIFs.
+
 ## Optimization algorithm
 
 `optimize_image` in `rust/src/converter.rs` sniffs the format, then takes one of
@@ -131,8 +136,15 @@ moves with the quality candidate and the fallback must not.
 
 `image_optimizer_state.dart` is a sealed hierarchy: the root
 `ImageOptimizerState` carries `minimumQuality`, and the sealed
-`ImageOptimizerFilePicked` adds `pickedFile` + `outputPath`. When adding a
-state:
+`ImageOptimizerFilesPicked` adds `items` — one per picked file — with
+`ImageOptimizerOptimizing` while the batch runs and `ImageOptimizerCompleted`
+once every item has finished. Per-file status lives on the items, not the state:
+`image_optimization_item.dart` is a second sealed hierarchy
+(`PendingImage` → `OptimizingImage` → `OptimizedImage` | `FailedImage`), each
+carrying the `minimumQuality` pinned when the batch started, with
+`fromImageOptimizationItem` factories for the transitions. Workers swap items by
+index through `_replaceItem`, which reads `state` and emits with no `await` in
+between so concurrent updates are never lost. When adding a state:
 
 - extend the narrowest sealed base that already has the fields you need;
 - implement `copyWith` and a `fromImageOptimizerState` factory (the transition
@@ -142,7 +154,9 @@ state:
   `image_optimizer_page.dart`.
 
 Output files go to `getApplicationDocumentsDirectory()`, named
-`<input>_<epochMillis>.webp`.
+`<input>_<epochMillis>.webp`. A batch shares one timestamp, so a basename that
+repeats within it (compared case-insensitively) gets a `_<n>` suffix:
+`<input>_<epochMillis>_<n>.webp`.
 
 # Lint rules that actually bite
 

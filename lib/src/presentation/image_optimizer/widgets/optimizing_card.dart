@@ -1,7 +1,16 @@
+import 'package:flutter/foundation.dart'
+    show DiagnosticPropertiesBuilder, IntProperty;
 import 'package:flutter/material.dart';
 
 class OptimizingCard extends StatelessWidget {
-  const OptimizingCard({super.key});
+  const OptimizingCard({
+    required this.completed,
+    required this.total,
+    super.key,
+  });
+
+  final int completed;
+  final int total;
 
   @override
   Widget build(BuildContext context) {
@@ -13,9 +22,18 @@ class OptimizingCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Optimizing image...', style: textTheme.titleMedium),
+            Text(
+              total == 1
+                  ? 'Optimizing image...'
+                  : 'Optimizing images... $completed of $total done',
+              style: textTheme.titleMedium,
+            ),
             const SizedBox(height: 12),
-            const LinearProgressIndicator(),
+            // A lone image has no progress to report until it is done, so it
+            // gets the indeterminate bar rather than one pinned at zero.
+            LinearProgressIndicator(
+              value: total == 1 ? null : completed / total,
+            ),
             const SizedBox(height: 8),
             Text(
               'Animated images can take a while.',
@@ -25,5 +43,13 @@ class OptimizingCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+    properties
+      ..add(IntProperty('completed', completed))
+      ..add(IntProperty('total', total));
   }
 }

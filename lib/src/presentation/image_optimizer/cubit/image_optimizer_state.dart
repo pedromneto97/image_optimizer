@@ -12,61 +12,53 @@ final class FailedToPickImage extends ImageOptimizerState {
       FailedToPickImage(minimumQuality: minimumQuality ?? this.minimumQuality);
 }
 
-final class ImageOptimizerFailure extends ImageOptimizerFilePicked {
-  const ImageOptimizerFailure({
-    required this.exception,
-    required super.pickedFile,
-    required super.outputPath,
+/// Every item in the batch has finished, as [OptimizedImage] or [FailedImage].
+final class ImageOptimizerCompleted extends ImageOptimizerFilesPicked {
+  const ImageOptimizerCompleted({
+    required super.items,
     required super.minimumQuality,
   });
 
-  factory ImageOptimizerFailure.fromImageOptimizerState(
-    ImageOptimizerFilePicked state, {
-    required ImageOptimizationException exception,
-  }) => ImageOptimizerFailure(
-    exception: exception,
-    pickedFile: state.pickedFile,
-    outputPath: state.outputPath,
+  factory ImageOptimizerCompleted.fromImageOptimizerState(
+    ImageOptimizerFilesPicked state,
+  ) => ImageOptimizerCompleted(
+    items: state.items,
     minimumQuality: state.minimumQuality,
   );
-
-  final ImageOptimizationException exception;
-
-  @override
-  List<Object?> get props => [...super.props, exception];
 
   @override
   ImageOptimizerState copyWith({
     int? minimumQuality,
-    XFile? pickedFile,
-    String? outputPath,
-    ImageOptimizationException? exception,
-  }) => ImageOptimizerFailure(
-    exception: exception ?? this.exception,
-    pickedFile: pickedFile ?? this.pickedFile,
-    outputPath: outputPath ?? this.outputPath,
+    List<ImageOptimizationItem>? items,
+  }) => ImageOptimizerCompleted(
+    items: items ?? this.items,
     minimumQuality: minimumQuality ?? this.minimumQuality,
   );
 }
 
-sealed class ImageOptimizerFilePicked extends ImageOptimizerState {
-  const ImageOptimizerFilePicked({
-    required this.pickedFile,
-    required this.outputPath,
+sealed class ImageOptimizerFilesPicked extends ImageOptimizerState {
+  const ImageOptimizerFilesPicked({
+    required this.items,
     required super.minimumQuality,
   });
 
-  final XFile pickedFile;
-  final String outputPath;
+  /// One entry per picked file, in the order they were picked.
+  final List<ImageOptimizationItem> items;
+
+  /// Items that have finished, successfully or not.
+  int get completedCount => items
+      .where((item) => item is OptimizedImage || item is FailedImage)
+      .length;
+
+  int get failedCount => items.whereType<FailedImage>().length;
 
   @override
-  List<Object?> get props => [...super.props, pickedFile, outputPath];
+  List<Object?> get props => [...super.props, items];
 
   @override
   ImageOptimizerState copyWith({
     int? minimumQuality,
-    XFile? pickedFile,
-    String? outputPath,
+    List<ImageOptimizationItem>? items,
   });
 }
 
@@ -79,31 +71,26 @@ final class ImageOptimizerInitial extends ImageOptimizerState {
   );
 }
 
-final class ImageOptimizerOptimizing extends ImageOptimizerFilePicked {
+final class ImageOptimizerOptimizing extends ImageOptimizerFilesPicked {
   const ImageOptimizerOptimizing({
-    required super.pickedFile,
-    required super.outputPath,
+    required super.items,
     required super.minimumQuality,
   });
 
   factory ImageOptimizerOptimizing.fromImageOptimizerState(
     ImageOptimizerState state, {
-    required XFile pickedFile,
-    required String outputPath,
+    required List<ImageOptimizationItem> items,
   }) => ImageOptimizerOptimizing(
-    pickedFile: pickedFile,
-    outputPath: outputPath,
+    items: items,
     minimumQuality: state.minimumQuality,
   );
 
   @override
   ImageOptimizerState copyWith({
     int? minimumQuality,
-    XFile? pickedFile,
-    String? outputPath,
+    List<ImageOptimizationItem>? items,
   }) => ImageOptimizerOptimizing(
-    pickedFile: pickedFile ?? this.pickedFile,
-    outputPath: outputPath ?? this.outputPath,
+    items: items ?? this.items,
     minimumQuality: minimumQuality ?? this.minimumQuality,
   );
 }
@@ -117,68 +104,4 @@ sealed class ImageOptimizerState extends Equatable {
   List<Object?> get props => [minimumQuality];
 
   ImageOptimizerState copyWith({int? minimumQuality});
-}
-
-final class OptimizeImageSuccess extends ImageOptimizerFilePicked {
-  const OptimizeImageSuccess({
-    required super.pickedFile,
-    required super.outputPath,
-    required this.outputQuality,
-    required this.frameCount,
-    required super.minimumQuality,
-  });
-
-  /// [minimumQuality] is the value the conversion actually ran with, which is
-  /// not always `state.minimumQuality`: the slider stays live while the
-  /// isolate works, so it can move between the request and the result.
-  factory OptimizeImageSuccess.fromImageOptimizerState(
-    ImageOptimizerFilePicked state, {
-    required int frameCount,
-    required int minimumQuality,
-    required int outputQuality,
-  }) => OptimizeImageSuccess(
-    pickedFile: state.pickedFile,
-    outputPath: state.outputPath,
-    outputQuality: outputQuality,
-    frameCount: frameCount,
-    minimumQuality: minimumQuality,
-  );
-
-  /// Frames in the output. 1 for a still image, more for an animation.
-  final int frameCount;
-  final int outputQuality;
-
-  bool get isAnimated => frameCount > 1;
-
-  Future<int> get outputFileSizeBytes async => File(outputPath).length();
-
-  @override
-  List<Object?> get props => [...super.props, outputQuality, frameCount];
-
-  Future<int> get sizeDifferenceBytes async {
-    final inputFile = File(pickedFile.path);
-    final outputFile = File(outputPath);
-
-    final [inputSize, outputSize] = await Future.wait([
-      inputFile.length(),
-      outputFile.length(),
-    ]);
-
-    return outputSize - inputSize;
-  }
-
-  @override
-  ImageOptimizerState copyWith({
-    int? minimumQuality,
-    XFile? pickedFile,
-    String? outputPath,
-    int? outputQuality,
-    int? frameCount,
-  }) => OptimizeImageSuccess(
-    pickedFile: pickedFile ?? this.pickedFile,
-    outputPath: outputPath ?? this.outputPath,
-    outputQuality: outputQuality ?? this.outputQuality,
-    frameCount: frameCount ?? this.frameCount,
-    minimumQuality: minimumQuality ?? this.minimumQuality,
-  );
 }
