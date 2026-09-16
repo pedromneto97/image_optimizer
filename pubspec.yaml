@@ -33,6 +33,7 @@ flutter:
   uses-material-design: true
   config:
     enable-swift-package-manager: true
+    enable-macos-arm64-only: true
 
 ffigen:
   name: ImageOptimizerFFI

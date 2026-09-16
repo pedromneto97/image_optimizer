@@ -11,11 +11,9 @@ void main(List<String> args) async {
       return;
     }
 
-    await RustBuilder(
+    await const RustBuilder(
       assetName: 'src/ffi.g.dart',
-      extraCargoEnvironmentVariables: input.config.code.targetOS != OS.macOS
-          ? const {'RUSTFLAGS': '-Ctarget-cpu=native'}
-          : const {},
+      extraCargoEnvironmentVariables: {'RUSTFLAGS': '-Ctarget-cpu=native'},
     ).run(
       input: input,
       output: output,
