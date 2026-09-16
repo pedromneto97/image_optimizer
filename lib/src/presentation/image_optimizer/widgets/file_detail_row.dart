@@ -15,26 +15,29 @@ class FileDetailRow extends StatelessWidget {
   final Widget? trailing;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 180,
-          child: Text(
-            label,
-            style: const TextStyle(fontWeight: FontWeight.w600),
+  Widget build(BuildContext context) {
+    final text = Expanded(child: SelectableText(value));
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 180,
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
-        ),
-        Expanded(
-          child: trailing != null
-              ? Row(spacing: 4, children: [SelectableText(value), trailing!])
-              : SelectableText(value),
-        ),
-      ],
-    ),
-  );
+          if (trailing != null)
+            Expanded(child: Row(spacing: 4, children: [text, trailing!]))
+          else
+            text,
+        ],
+      ),
+    );
+  }
 
   @override
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
