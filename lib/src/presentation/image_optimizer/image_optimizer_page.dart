@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'cubit/image_optimizer_cubit.dart';
 import 'widgets/image_optimizer_error_message.dart';
 import 'widgets/input_summary_card.dart';
+import 'widgets/optimizing_card.dart';
 import 'widgets/quality_slider.dart';
 import 'widgets/result_card.dart';
 
@@ -56,8 +57,15 @@ class ImageOptimizerPage extends StatelessWidget {
                         onPressed: isLoading
                             ? null
                             : context.read<ImageOptimizerCubit>().pickImage,
-                        icon: const Icon(Icons.image_search),
-                        label: const Text('Pick image'),
+                        icon: isLoading
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.image_search),
+                        label: Text(isLoading ? 'Optimizing...' : 'Pick image'),
                       ),
                     ),
               ),
@@ -75,12 +83,18 @@ class ImageOptimizerPage extends StatelessWidget {
           BlocSelector<
             ImageOptimizerCubit,
             ImageOptimizerState,
-            OptimizeImageSuccess?
+            ImageOptimizerFilePicked?
           >(
-            selector: (state) => state is OptimizeImageSuccess ? state : null,
-            builder: (context, state) => state != null
-                ? ResultCard(state: state)
-                : const SizedBox.shrink(),
+            selector: (state) => switch (state) {
+              final OptimizeImageSuccess success => success,
+              final ImageOptimizerOptimizing optimizing => optimizing,
+              _ => null,
+            },
+            builder: (context, state) => switch (state) {
+              OptimizeImageSuccess() => ResultCard(state: state),
+              ImageOptimizerOptimizing() => const OptimizingCard(),
+              _ => const SizedBox.shrink(),
+            },
           ),
         ],
       ),
