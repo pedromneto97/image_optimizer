@@ -1,7 +1,7 @@
 name: image_optimizer
 description: "Optimize images by converting it to WebP and choosing the best quality/compression ratio"
 publish_to: "none"
-version: 2.0.0+7
+version: 2.1.0+8
 
 environment:
   sdk: ^3.13.2

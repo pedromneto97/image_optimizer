@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.1.0](https://github.com/pedromneto97/image_optimizer/compare/v2.0.0...v2.1.0) (2026-09-16)
+
+
+### Features
+
+* support converting multiple images ([#15](https://github.com/pedromneto97/image_optimizer/issues/15)) ([75cefc9](https://github.com/pedromneto97/image_optimizer/commit/75cefc9c20f8fc3b3c272ec47c15eaca4ae94eee))
+
+
+### Bug Fixes
+
+* do not get full metadata ([73f129e](https://github.com/pedromneto97/image_optimizer/commit/73f129e4297a4e690a26a3961bd9e0d45f4cfc52))
+* **macos:** launch crash on release build, missing entitlements, rename to Image Optimizer ([e3a7f40](https://github.com/pedromneto97/image_optimizer/commit/e3a7f40496d6e1ef26f9ea14afb557e3488e966a))
+
 ## [2.0.0](https://github.com/pedromneto97/image_optimizer/compare/v1.1.0...v2.0.0) (2026-09-16)
 
 
