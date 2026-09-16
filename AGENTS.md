@@ -201,9 +201,19 @@ signs with Developer ID afterwards. So all three Runner configurations must keep
 `"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-"` in
 `macos/Runner.xcodeproj/project.pbxproj`; opening the project in Xcode can
 rewrite it to `Apple Development`, which fails the release build with
-*No signing certificate "Mac Development" found*. Entitlements are read back off
-the built app rather than from `Runner/Release.entitlements`, because Xcode
-merges the `ENABLE_*` capability build settings into them.
+*No signing certificate "Mac Development" found*. They must also keep
+`ENABLE_HARDENED_RUNTIME = NO`: hardened runtime turns on library validation,
+which an ad-hoc signature (no Team ID) cannot pass, so a local release build dies
+at launch with *mapping process and mapped file (non-platform) have different
+Team IDs* on `FlutterMacOS.framework`. The shipped app is still hardened — the CI
+signing step adds `--options runtime` to every binary. Entitlements are read back
+off the built app rather than from `Runner/Release.entitlements`, because Xcode
+merges the `ENABLE_*` capability build settings into them; `get-task-allow` is
+stripped on the way, since the notary service rejects it.
+
+The bundle is `Image Optimizer.app` (`PRODUCT_NAME` in
+`macos/Runner/Configs/AppInfo.xcconfig`); `APP_PATH` in the release workflow
+and `TEST_HOST` in the Xcode project spell the name out and must follow it.
 
 # Repo conventions
 

@@ -103,7 +103,7 @@ jobs:
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      APP_PATH: build/macos/Build/Products/Release/image_optimizer.app
+      APP_PATH: build/macos/Build/Products/Release/Image Optimizer.app
     steps:
       - uses: actions/checkout@v7
         with:
@@ -174,6 +174,18 @@ jobs:
               --sign "$CODESIGN_IDENTITY" "$@"
           }
 
+          # Read the entitlements back off the built app before anything is
+          # re-signed. Runner/Release.entitlements holds only app-sandbox; Xcode
+          # merges the ENABLE_* capability build settings (user-selected files,
+          # Pictures, Downloads, Photos) in at build time, so signing with the file
+          # ships a sandboxed app that cannot read the files the user picks.
+          # get-task-allow is dropped: Xcode injects it into ad-hoc builds, and the
+          # notary service rejects any executable that requests it.
+          ENTITLEMENTS="$RUNNER_TEMP/entitlements.plist"
+          codesign --display --entitlements - --xml "$APP_PATH" > "$ENTITLEMENTS"
+          /usr/libexec/PlistBuddy -c 'Delete :com.apple.security.get-task-allow' \
+            "$ENTITLEMENTS" 2>/dev/null || true
+
           # Sign nested code (Flutter framework, plugins, the Rust dylib) inside out,
           # rather than relying on the deprecated --deep. Every Mach-O binary in the
           # bundle needs its own hardened-runtime + timestamped signature; one that is
@@ -195,7 +207,7 @@ jobs:
               done
           fi
           codesign --force --options runtime --timestamp \
-            --entitlements macos/Runner/Release.entitlements \
+            --entitlements "$ENTITLEMENTS" \
             --sign "$CODESIGN_IDENTITY" "$APP_PATH"
 
           # --deep, unlike the top-level-only check this replaces, walks the nested
