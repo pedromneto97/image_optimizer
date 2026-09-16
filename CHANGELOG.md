@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.0.0](https://github.com/pedromneto97/image_optimizer/compare/v1.1.0...v2.0.0) (2026-09-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* **macos:** drop intel support
+
+### Features
+
+* add loading indicator ([3d399d3](https://github.com/pedromneto97/image_optimizer/commit/3d399d37b745b0fdfc1fa5f905ab87e354382a3e))
+* **macos:** drop intel support ([437a34f](https://github.com/pedromneto97/image_optimizer/commit/437a34f2607b82f8428a8c86c8302a3559204b2c))
+
+
+### Bug Fixes
+
+* improve broken text ([a6847f8](https://github.com/pedromneto97/image_optimizer/commit/a6847f8621d2bdad9ca3b2ad1453f1fa0336d03c))
+
 ## [1.1.0](https://github.com/pedromneto97/image_optimizer/compare/v1.0.3...v1.1.0) (2026-09-02)
 
 
