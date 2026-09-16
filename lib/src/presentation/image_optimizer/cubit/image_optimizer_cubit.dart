@@ -33,7 +33,9 @@ class ImageOptimizerCubit extends Cubit<ImageOptimizerState> {
 
     final List<ImageOptimizationItem> items;
     try {
-      final pickedFiles = await _imagePicker.pickMultiImage();
+      final pickedFiles = await _imagePicker.pickMultiImage(
+        requestFullMetadata: false,
+      );
 
       if (pickedFiles.isEmpty) {
         return;
