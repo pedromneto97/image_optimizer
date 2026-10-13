@@ -22,7 +22,7 @@ dependencies:
   url_launcher: ^6.3.2
 
 dev_dependencies:
-  ffigen: ^22.0.0
+  ffigen: ^23.0.0
   flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter
